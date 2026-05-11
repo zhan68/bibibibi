@@ -20,13 +20,13 @@ def start_browser():
     """专门为 Render Docker 环境配置的浏览器启动器"""
     chrome_options = Options()
     # --- 核心云端运行参数 ---
-    [span_0](start_span)chrome_options.add_argument('--headless')           # 无界面模式[span_0](end_span)
-    [span_1](start_span)chrome_options.add_argument('--no-sandbox')         # 必须：解决权限问题[span_1](end_span)
-    [span_2](start_span)chrome_options.add_argument('--disable-dev-shm-usage') # 必须：防止内存溢出[span_2](end_span)
+    chrome_options.add_argument('--headless')           # 无界面模式
+    chrome_options.add_argument('--no-sandbox')         # 必须：解决权限问题
+    chrome_options.add_argument('--disable-dev-shm-usage') # 必须：防止内存溢出
     chrome_options.add_argument('--disable-gpu')        # 禁用GPU节省资源
     
     # 指定 Chrome 二进制文件路径 (Render 镜像默认路径)
-    [span_3](start_span)chrome_options.binary_location = "/usr/bin/google-chrome"[span_3](end_span)
+    chrome_options.binary_location = "/usr/bin/google-chrome"
     
     # 禁止加载图片，大幅减少内存占用 (Render 只有 512MB)
     chrome_options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
@@ -84,10 +84,10 @@ def get_apple_ids():
     finally:
         if driver:
             print(">>> [hao456] 正在关闭浏览器释放内存...")
-            [span_4](start_span)driver.quit() # 必须执行，否则会阻塞下一个脚本运行[span_4](end_span)
+            driver.quit() # 必须执行，否则会阻塞下一个脚本运行
 
 def send_to_telegram(content_list):
-    [span_5](start_span)token = os.environ.get('BOT_TOKEN') # 从 Render 环境获取[span_5](end_span)
+    token = os.environ.get('BOT_TOKEN') # 从 Render 环境获取
     chat_id = "@yinlianID"
     if not content_list: return
 
