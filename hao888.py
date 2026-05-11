@@ -125,4 +125,9 @@ def send_to_telegram(content_list):
 
 if __name__ == "__main__":
     data = get_apple_ids()
+    if data:
+        # 确保这里没有写错名字
+        send_to_telegram(data) 
+    else:
+        print("抓取数据为空，脚本正常退出。")
     send_to_telegram(data)
