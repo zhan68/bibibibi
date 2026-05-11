@@ -19,16 +19,15 @@ def escape_markdown(text):
 def start_browser():
     """统一配置浏览器，适配 Render Docker 环境"""
     chrome_options = Options()
-    # --- 必须参数 ---
+    # -[span_1](start_span)-- Render 生产环境必须参数[span_1](end_span) ---
     chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
-    # --- 优化参数：显式指定 Chrome 路径 ---
+    # [span_2](start_span)显式指定 Chrome 路径[span_2](end_span)
     chrome_options.binary_location = "/usr/bin/google-chrome" 
-    # --- 内存优化：禁止加载图片 ---
+    # 内存优化：禁止加载图片
     chrome_options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
-    # 模拟移动端 UA
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1')
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
@@ -44,20 +43,20 @@ def send_error_to_tg(msg, photo_path=None):
     try:
         with open(photo_path, 'rb') as photo:
             requests.post(url, data={'chat_id': chat_id, 'caption': f"❌ 源3抓取失败报告\n{msg}"}, files={'photo': photo})
-    except: pass
+    except Exception as e:
+        print(f"发送报错通知失败: {e}")
 
 def get_apple_ids():
     driver = None
     try:
         driver = start_browser()
-        # 你的源3目标地址
+        print(">>> 正在访问源3(Moe)页面...")
         driver.get("https://appleid.moe233.app/share/GURdOstilD")
         wait = WebDriverWait(driver, 30)
         
-        # 等待按钮加载
+        # 等待关键按钮加载
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "copy-btn")))
         
-        # 定位账号和密码按钮
         user_btns = driver.find_elements(By.CSS_SELECTOR, ".copy-btn")
         pass_btns = driver.find_elements(By.CSS_SELECTOR, ".copy-pass-btn")
         
@@ -66,64 +65,57 @@ def get_apple_ids():
             username = user_btns[i].get_attribute("data-clipboard-text") or user_btns[i].text.strip()
             password = pass_btns[i].get_attribute("data-clipboard-text") or pass_btns[i].text.strip()
             
-            # 过滤无效账号
-            if "http" in username.lower() or "@" not in username:
+            # [span_3](start_span)过滤无效项[span_3](end_span)
+            if not username or "@" not in username or "http" in username.lower():
                 continue
                 
-            if username and password:
-                res = (f"👤 账号：`{escape_markdown(username)}`\n"
-                       f"🔑 密码：`{escape_markdown(password)}`")
-                account_data.append(res)
+            res = (f"👤 账号：`{escape_markdown(username)}`\n"
+                   f"🔑 密码：`{escape_markdown(password)}`")
+            account_data.append(res)
         
+        print(f"成功抓取到 {len(account_data)} 个账号。")
         return account_data
+
     except Exception as e:
-        print(f"抓取异常: {e}")
+        print(f"❌ hao789 运行异常: {e}")
         if driver:
-            scr_path = "error_moe.png"
-            driver.save_screenshot(scr_path)
-            send_error_to_tg(f"源3抓取异常: {str(e)[:100]}", scr_path)
+            try:
+                scr_path = "error_hao789.png"
+                driver.save_screenshot(scr_path)
+                send_error_to_tg(f"hao789 抓取异常: {str(e)[:100]}", scr_path)
+            except: pass
         return None
     finally:
         if driver:
-            driver.quit() # --- 核心：无论如何都要关闭浏览器，释放内存 ---
+            print("正在关闭浏览器并释放资源...")
+            [span_4](start_span)driver.quit() # --- 核心：必须彻底退出以释放内存[span_4](end_span) ---
 
 def send_to_telegram(content_list):
     token = os.environ.get('BOT_TOKEN')
     chat_id = "@yinlianID"
-    if not content_list: 
-        print("未抓取到有效账号，跳过发送。")
-        return
+    if not content_list: return
 
     body = "\n\n──────────────\n\n".join(content_list)
-    tz_bj = timezone(timedelta(hours=8))
-    bj_time = datetime.now(tz_bj).strftime('%Y-%m-%d %H:%M:%S')
-    
-    notice = (
-        f"🕒 更新时间：{escape_markdown(bj_time)}\n"
-        f"⚠️ *警告：严禁在设置/iCloud中登录！*\n\n"
-        f"❤️ *欢迎关注我们频道：*@{escape_markdown('yinlianID')}"
-    )
+    # 北京时间计算
+    bj_time = (datetime.now(timezone.utc) + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')
     
     header = "🚀 *最新 Apple ID 共享更新【3】*"
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
-    full_caption = f"{header}\n\n{body}\n\n{notice}"
+    full_caption = f"{header}\n\n{body}\n\n🕒 更新时间：{escape_markdown(bj_time)}\n❤️ 频道：@yinlianID"
 
-    # 消息发送逻辑
+    # Telegram 发送逻辑
     if len(full_caption) <= 1024:
         url = f"https://api.telegram.org/bot{token}/sendPhoto"
         data = {"chat_id": chat_id, "photo": img_url, "caption": full_caption, "parse_mode": "MarkdownV2"}
     else:
-        # 如果超长，使用文字模式发送，预览图通过隐形链接置顶
         url = f"https://api.telegram.org/bot{token}/sendMessage"
         data = {"chat_id": chat_id, "text": f"[​]({img_url}){full_caption}", "parse_mode": "MarkdownV2"}
     
-    response = requests.post(url, json=data)
-    print(f"发送结果: {response.status_code}, {response.text}")
+    requests.post(url, json=data)
 
 if __name__ == "__main__":
+    print("--- 启动 hao789.py 任务 ---")
     data = get_apple_ids()
     if data:
-        # 确保这里没有写错名字
-        send_to_telegram(data) 
-    else:
-        print("抓取数据为空，脚本正常退出。")
+        send_to_telegram(data)
+    [span_5](start_span)print("--- hao789.py 任务执行结束 ---") # 打印此行说明程序已正常退出[span_5](end_span)
