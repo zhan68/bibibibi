@@ -70,7 +70,7 @@ def send_to_telegram(content_list):
     body = "\n\n──────────────\n\n".join(content_list)
     bj_time = (datetime.now(timezone.utc) + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')
     
-    header = "🚀 *最新 Apple ID 共享更新*"
+    header = "🚀 *最新 Apple ID 共享更新【2】*"
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     full_caption = f"{header}\n\n{body}\n\n🕒 更新时间：{escape_markdown(bj_time)}"
 
