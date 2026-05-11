@@ -4,49 +4,39 @@ import os
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-# --- 1. 网页服务逻辑：用于唤醒 Render 并通过端口检查 ---
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot Cluster is Active")
+        self.wfile.write(b"Cluster Active")
 
-def run_health_check_server():
-    # Render 会自动注入 PORT 环境变量，默认使用 10000
+def run_server():
     port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    print(f"[{time.strftime('%X')}] 唤醒服务已启动，监听端口: {port}")
-    server.serve_forever()
+    HTTPServer(('0.0.0.0', port), HealthCheckHandler).serve_forever()
 
-# --- 2. 核心调度逻辑：每 15 分钟运行一个脚本 ---
 def run_robot_loop():
-    # 这里填入你所有的脚本文件名
+    # 这里的顺序决定了执行顺序
     scripts = ["hao123.py", "hao456.py", "hao789.py", "hao888.py"]
-    
-    print(f"[{time.strftime('%X')}] 调度器已启动，准备轮询 {len(scripts)} 个脚本...")
     
     while True:
         for script in scripts:
-            print(f"\n{'='*30}")
-            print(f"[{time.strftime('%X')}] 🚀 开始执行任务: {script}")
-            print(f"{'='*30}")
+            print(f"\n--- [🕒 {time.strftime('%X')}] 准备执行: {script} ---")
             
             try:
-                # 运行脚本并等待其结束
-                result = subprocess.run(["python", script], capture_output=True, text=True)
-                print(result.stdout)
-                if result.stderr:
-                    print(f"脚本报错输出: {result.stderr}")
+                # 重点优化：增加 timeout=300（5分钟），如果5分钟没跑完强制杀掉，跑下一个
+                subprocess.run(["python", script], timeout=300) 
+                print(f"--- [✅ {time.strftime('%X')}] {script} 正常结束 ---")
+            except subprocess.TimeoutExpired:
+                print(f"--- [⚠️ {time.strftime('%X')}] {script} 运行超时，已强制跳过 ---")
             except Exception as e:
-                print(f"调度执行异常: {e}")
+                print(f"--- [❌ {time.strftime('%X')}] {script} 发生错误: {e} ---")
             
-            print(f"[{time.strftime('%X')}] ✅ {script} 执行完毕。等待 15 分钟...")
-            # 休息 900 秒 (15 分钟)
+            # 每个脚本跑完后，雷打不动休息 15 分钟
+            print(f"等待 15 分钟后切换到下一个脚本...")
             time.sleep(900)
 
 if __name__ == "__main__":
-    # 启动后台唤醒服务器
-    threading.Thread(target=run_health_check_server, daemon=True).start()
-    
-    # 启动循环任务
+    # [span_0](start_span)启动健康检查，防止 Render 关机[span_0](end_span)
+    threading.Thread(target=run_server, daemon=True).start()
+    # 启动顺序调度
     run_robot_loop()
