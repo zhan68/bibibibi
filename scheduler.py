@@ -1,38 +1,52 @@
 import subprocess
 import time
 import os
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
-# --- 1. 必须有的网页服务，用来告诉 Render “我活着的” ---
+# --- 1. 网页服务逻辑：用于唤醒 Render 并通过端口检查 ---
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"OK")
+        self.wfile.write(b"Bot Cluster is Active")
 
 def run_health_check_server():
-    # Render 会自动分配端口给环境变量 PORT，默认是 10000
+    # Render 会自动注入 PORT 环境变量，默认使用 10000
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    print(f"检测服务器启动在端口: {port}")
+    print(f"[{time.strftime('%X')}] 唤醒服务已启动，监听端口: {port}")
     server.serve_forever()
 
-# --- 2. 你的机器人调度逻辑 ---
+# --- 2. 核心调度逻辑：每 15 分钟运行一个脚本 ---
 def run_robot_loop():
+    # 这里填入你所有的脚本文件名
     scripts = ["hao123.py", "hao456.py", "hao789.py", "hao888.py"]
+    
+    print(f"[{time.strftime('%X')}] 调度器已启动，准备轮询 {len(scripts)} 个脚本...")
+    
     while True:
         for script in scripts:
-            print(f"正在启动机器人: {script}")
-            # 使用 subprocess 运行你的爬虫
-            subprocess.run(["python", script])
-            # 运行完一个，休息 15 分钟
-            print(f"等待 15 分钟...")
+            print(f"\n{'='*30}")
+            print(f"[{time.strftime('%X')}] 🚀 开始执行任务: {script}")
+            print(f"{'='*30}")
+            
+            try:
+                # 运行脚本并等待其结束
+                result = subprocess.run(["python", script], capture_output=True, text=True)
+                print(result.stdout)
+                if result.stderr:
+                    print(f"脚本报错输出: {result.stderr}")
+            except Exception as e:
+                print(f"调度执行异常: {e}")
+            
+            print(f"[{time.strftime('%X')}] ✅ {script} 执行完毕。等待 15 分钟...")
+            # 休息 900 秒 (15 分钟)
             time.sleep(900)
 
 if __name__ == "__main__":
-    # 启动健康检查服务器（放在后台线程）
+    # 启动后台唤醒服务器
     threading.Thread(target=run_health_check_server, daemon=True).start()
     
-    # 启动机器人循环
+    # 启动循环任务
     run_robot_loop()
