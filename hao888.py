@@ -19,19 +19,19 @@ def escape_markdown(text):
 def start_browser():
     """配置适用于 Render Docker 环境的浏览器"""
     chrome_options = Options()
-    # --- 必须参数 ---
+    # --- 核心云端参数 ---
     chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
     
-    # --- 显式指定 Render 中的 Chrome 路径 ---
+    # --- 显式指定二进制路径防止报错 ---
     chrome_options.binary_location = "/usr/bin/google-chrome" 
     
-    # --- 内存优化：禁止加载图片 ---
+    # --- 内存压缩：不加载图片 ---
     chrome_options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
     
-    # 模拟真实移动端 User-Agent
+    # 模拟真实移动端 UA
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1')
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
@@ -46,7 +46,7 @@ def send_error_to_tg(msg, photo_path=None):
     url = f"https://api.telegram.org/bot{token}/sendPhoto"
     try:
         with open(photo_path, 'rb') as photo:
-            requests.post(url, data={'chat_id': chat_id, 'caption': f"❌ 源4抓取失败报告\n{msg}"}, files={'photo': photo})
+            requests.post(url, data={'chat_id': chat_id, 'caption': f"❌ 源4(hao888)抓取失败报告\n{msg}"}, files={'photo': photo})
     except Exception as e:
         print(f"发送错误报告失败: {e}")
 
@@ -66,11 +66,13 @@ def get_apple_ids():
             
             submit_btn = driver.find_element(By.CSS_SELECTOR, "button, .btn-primary, input[type='submit']")
             driver.execute_script("arguments[0].click();", submit_btn)
-            time.sleep(10) # 等待渲染
+            print("密码提交成功，等待页面跳转...")
+            time.sleep(12) 
         except Exception as e:
-            print(f"密码环节异常: {e}")
+            print(f"密码环节异常 (可能已解锁): {e}")
 
         # --- 2. 账号解析 ---
+        print("正在解析数据...")
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "copy-btn")))
         user_btns = driver.find_elements(By.CLASS_NAME, "copy-btn")
         pass_btns = driver.find_elements(By.CLASS_NAME, "copy-pass-btn")
@@ -80,7 +82,7 @@ def get_apple_ids():
             username = user_btns[i].get_attribute("data-clipboard-text") or user_btns[i].text.strip()
             password = pass_btns[i].get_attribute("data-clipboard-text") or pass_btns[i].text.strip()
             
-            # 过滤逻辑
+            # 增强过滤
             if "http" in username.lower() or "/" in username or "@" not in username:
                 continue
                 
@@ -94,26 +96,37 @@ def get_apple_ids():
     except Exception as e:
         print(f"源4抓取过程崩溃: {e}")
         if driver:
-            screenshot_path = "error_source4.png"
+            screenshot_path = "error_hao888.png"
             driver.save_screenshot(screenshot_path)
-            send_error_to_tg(f"源4崩溃日志: {str(e)[:100]}", screenshot_path)
+            send_error_to_tg(f"源4异常: {str(e)[:100]}", screenshot_path)
         return None
     finally:
         if driver:
-            driver.quit() # 释放内存，防止宿主机卡死
+            print("正在关闭浏览器释放内存...")
+            driver.quit() # 核心：必须彻底退出
 
 def send_to_telegram(content_list):
     token = os.environ.get('BOT_TOKEN')
     chat_id = "@yinlianID"
-    if not content_list: return
+    if not content_list: 
+        print("没有可发送的内容，跳过推送。")
+        return
 
     body = "\n\n──────────────\n\n".join(content_list)
     bj_time = (datetime.now(timezone.utc) + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')
     
     header = "🚀 *最新 Apple ID 共享更新【4】*"
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
-    full_caption = f"{header}\n\n{body}\n\n🕒 更新时间：{escape_markdown(bj_time)}"
+    
+    notice = (
+        f"🕒 更新时间：{escape_markdown(bj_time)}\n"
+        f"⚠️ *警告：严禁在设置/iCloud中登录！*\n\n"
+        f"❤️ *欢迎关注我们频道：*@{escape_markdown('yinlianID')}"
+    )
+    
+    full_caption = f"{header}\n\n{body}\n\n{notice}"
 
+    # 发送逻辑
     if len(full_caption) <= 1024:
         url = f"https://api.telegram.org/bot{token}/sendPhoto"
         payload = {"chat_id": chat_id, "photo": img_url, "caption": full_caption, "parse_mode": "MarkdownV2"}
@@ -121,13 +134,14 @@ def send_to_telegram(content_list):
         url = f"https://api.telegram.org/bot{token}/sendMessage"
         payload = {"chat_id": chat_id, "text": f"[​]({img_url}){full_caption}", "parse_mode": "MarkdownV2"}
     
-    requests.post(url, json=payload)
+    response = requests.post(url, json=payload)
+    print(f"Telegram 推送结果: {response.status_code}")
 
 if __name__ == "__main__":
     data = get_apple_ids()
+    # 修正：只在有数据时调用一次发送函数
     if data:
-        # 确保这里没有写错名字
-        send_to_telegram(data) 
+        send_to_telegram(data)
+        print("任务顺利完成并已推送。")
     else:
-        print("抓取数据为空，脚本正常退出。")
-    send_to_telegram(data)
+        print("未抓取到有效数据，脚本结束。")
