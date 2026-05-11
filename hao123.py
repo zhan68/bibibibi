@@ -13,21 +13,32 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 def escape_markdown(text):
-    """转义 Telegram MarkdownV2 特殊字符"""
+    [span_0](start_span)"""转义 Telegram MarkdownV2 特殊字符[span_0](end_span)"""
     escape_chars = r'_*[]()~`>#+-=|{}.!'
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
-def get_apple_ids():
-    """获取并解析 Apple ID"""
+def start_browser():
+    [span_1](start_span)[span_2](start_span)"""配置适用于 Render Docker 环境的浏览器[span_1](end_span)[span_2](end_span)"""
     chrome_options = Options()
     chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--disable-gpu')
+    # [span_3](start_span)显式指定 Render 中的 Chrome 路径[span_3](end_span)
+    chrome_options.binary_location = "/usr/bin/google-chrome" 
+    # 内存优化：禁止加载图片
+    chrome_options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    return driver
+
+def get_apple_ids():
+    [span_4](start_span)"""获取并解析 Apple ID[span_4](end_span)"""
+    driver = None
     try:
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-        driver.get("https://idfree.top/") # 目标网站
+        driver = start_browser()
+        driver.get("https://idfree.top/") 
         wait = WebDriverWait(driver, 30)
         
         # 1. 点击确认按钮解除限制
@@ -35,117 +46,62 @@ def get_apple_ids():
             confirm_btn = wait.until(EC.element_to_be_clickable((By.ID, "confirmProceed")))
             driver.execute_script("arguments[0].click();", confirm_btn)
         except Exception as e:
-            print(f"确认按钮不存在或不可点击: {e}")
+            print(f"确认按钮跳过或异常: {e}")
 
-        # 2. 等待 JS 渲染
-        time.sleep(8) 
+        # 2. 等待渲染
+        time.sleep(10) 
         
         # 3. 解析账号
         accounts = driver.find_elements(By.CSS_SELECTOR, "#accountList > div")
         account_data = []
         
         for acc in accounts:
-            try:
-                inputs = acc.find_elements(By.TAG_NAME, "input")
-                if len(inputs) >= 2:
-                    username = inputs[0].get_attribute("value")
-                    password = inputs[1].get_attribute("value")
-                    
-                    if username and password:
-                        # 格式化账号信息，使用反引号支持点击复制
-                        res = (f"📍 地区：{escape_markdown('共享账号')}\n"
-                               f"👤 账号：`{escape_markdown(username)}`\n"
-                               f"🔑 密码：`{escape_markdown(password)}`")
-                        account_data.append(res)
-            except:
-                continue
+            inputs = acc.find_elements(By.TAG_NAME, "input")
+            if len(inputs) >= 2:
+                username = inputs[0].get_attribute("value")
+                password = inputs[1].get_attribute("value")
+                if username and password and "@" in username:
+                    res = (f"👤 账号：`{escape_markdown(username)}`\n"
+                           f"🔑 密码：`{escape_markdown(password)}`")
+                    account_data.append(res)
         
-        driver.quit()
         return account_data
     except Exception as e:
-        print(f"抓取异常: {str(e)}")
+        print(f"抓取异常: {e}")
         return None
+    finally:
+        if driver:
+            [span_5](start_span)driver.quit() # 核心：强制退出浏览器释放内存[span_5](end_span)
 
-def send_to_telegram_fixed(content_list):
-    """通过发送媒体组强制图片置顶"""
+def send_to_telegram(content_list):
+    [span_6](start_span)"""发送更新到 Telegram，包含图片置顶逻辑[span_6](end_span)"""
     token = os.environ.get('BOT_TOKEN')
     chat_id = "@yinlianID"
-    
-    if not content_list:
-        print("未获取到有效数据，停止推送")
-        return
+    if not token or not content_list: return
 
-    # 1. 顶部图片 (使用 GitHub Raw 链接)
-    img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
-    
-    # 2. 构建纯文本标题和主体
-    # 注意：MarkdownV2 不支持在Caption中，我改用普通Markdown或纯文本
-    header = "🚀 最新 Apple ID 共享更新"
+    # 组装消息
     body = "\n\n──────────────\n\n".join(content_list)
-    
-    # 3. 北京时间
     tz_bj = timezone(timedelta(hours=8))
     bj_time = datetime.now(tz_bj).strftime('%Y-%m-%d %H:%M:%S')
     
-    # 4. 底部警告 (普通Markdown加粗用 **)
-    warning_section = (
-        f"\n\n🕒 更新时间：{escape_markdown(bj_time)}\n"
-        f"⚠️ **警告：严禁在设置/iCloud中登录！**"
-    )
+    header = "🚀 *最新 Apple ID 共享更新【1】*"
+    img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
+    notice = f"🕒 更新时间：{escape_markdown(bj_time)}\n⚠️ *严禁在设置/iCloud中登录！*"
     
-    # 5. 公告内容与客服信息 (全加粗)
-    notice_text = "共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待两个小时更新，请谅解"
-    announcement = (
-        f"\n\n**{escape_markdown(notice_text)}**\n\n"
-        f"❤️ **欢迎关注我们频道：**@{escape_markdown('yinlianID')}\n"
-        f"            **客    服：**@{escape_markdown('zzyyy')}"
-    )
-    
-    # 组合说明文字 (Caption)
-    # 因为媒体组 Caption 限制为1024字符，我们这里尽量保留
-    caption = f"{header}\n\n{body}{warning_section}{announcement}"
-    
-    # 如果 Caption 超长，Telegram 可能会拒绝发送，需要在这里做一些长度检查逻辑(如果账号非常多)
-    if len(caption) > 1024:
-        print("警告: 消息超长，可能被截断。正在尝试清理干扰字符...")
-        # (简化逻辑，如果账号超多需要做复杂截断)
-        pass
+    full_caption = f"{header}\n\n{body}\n\n{notice}"
 
-    # 6. 使用 sendMediaGroup 强制图片在前
-    media_group = [
-        {
-            'type': 'photo',
-            'media': img_url,
-            'caption': caption, # 将所有文字放在第一张图片的说明里
-            'parse_mode': 'MarkdownV2'
-        }
-    ]
-
-    url = f"https://api.telegram.org/bot{token}/sendMediaGroup"
-    payload = {
-        "chat_id": chat_id,
-        "media": json.dumps(media_group)
-    }
-    
-    # 发送请求
-    res = requests.post(url, data=payload) # 使用 data 而非 json，因为 media 是字符串化的 json
-
-    if res.status_code == 200:
-        print("推送成功！图片已置顶。")
+    # 1024字符检查
+    if len(full_caption) <= 1024:
+        url = f"https://api.telegram.org/bot{token}/sendPhoto"
+        data = {"chat_id": chat_id, "photo": img_url, "caption": full_caption, "parse_mode": "MarkdownV2"}
     else:
-        print(f"推送失败，错误详情: {res.text}")
-        # 如果 Markdown 报错，尝试使用纯文本作为 caption
-        if "Bad Request: can't parse entities" in res.text:
-            print("尝试以纯文本模式重新发送 Caption...")
-            media_group[0]['parse_mode'] = ''
-            media_group[0]['caption'] = caption.replace("`", "") # 移除点击复制符号
-            payload['media'] = json.dumps(media_group)
-            requests.post(url, data=payload)
+        # 超长则发送文字，预览图置顶
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        data = {"chat_id": chat_id, "text": f"[​]({img_url}){full_caption}", "parse_mode": "MarkdownV2"}
+    
+    res = requests.post(url, json=data)
+    print(f"推送结果: {res.status_code}")
 
 if __name__ == "__main__":
     data = get_apple_ids()
-    if data:
-        # 确保这里没有写错名字
-        send_to_telegram(data) 
-    else:
-        print("抓取数据为空，脚本正常退出。")
+    send_to_telegram(data)
