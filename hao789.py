@@ -19,12 +19,12 @@ def escape_markdown(text):
 def start_browser():
     """统一配置浏览器，适配 Render Docker 环境"""
     chrome_options = Options()
-    # -[span_1](start_span)-- Render 生产环境必须参数[span_1](end_span) ---
+    # --- Render 生产环境必须参数 ---
     chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
-    # [span_2](start_span)显式指定 Chrome 路径[span_2](end_span)
+    # 显式指定 Chrome 路径
     chrome_options.binary_location = "/usr/bin/google-chrome" 
     # 内存优化：禁止加载图片
     chrome_options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
@@ -65,7 +65,7 @@ def get_apple_ids():
             username = user_btns[i].get_attribute("data-clipboard-text") or user_btns[i].text.strip()
             password = pass_btns[i].get_attribute("data-clipboard-text") or pass_btns[i].text.strip()
             
-            # [span_3](start_span)过滤无效项[span_3](end_span)
+            # 过滤无效项
             if not username or "@" not in username or "http" in username.lower():
                 continue
                 
@@ -88,7 +88,7 @@ def get_apple_ids():
     finally:
         if driver:
             print("正在关闭浏览器并释放资源...")
-            [span_4](start_span)driver.quit() # --- 核心：必须彻底退出以释放内存[span_4](end_span) ---
+            driver.quit() # --- 核心：必须彻底退出以释放内存 ---
 
 def send_to_telegram(content_list):
     token = os.environ.get('BOT_TOKEN')
@@ -118,4 +118,4 @@ if __name__ == "__main__":
     data = get_apple_ids()
     if data:
         send_to_telegram(data)
-    [span_5](start_span)print("--- hao789.py 任务执行结束 ---") # 打印此行说明程序已正常退出[span_5](end_span)
+    print("--- hao789.py 任务执行结束 ---") # 打印此行说明程序已正常退出
