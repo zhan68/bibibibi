@@ -25,4 +25,4 @@ COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 启动你的脚本
-CMD ["python", "hao123.py"]
+CMD ["python", "scheduler.py"]
