@@ -19,7 +19,6 @@ def escape_markdown(text):
 def start_browser():
     """专门为 Render Docker 环境配置的浏览器启动器"""
     chrome_options = Options()
-    # --- 核心云端运行参数 ---
     chrome_options.add_argument('--headless')           # 无界面模式
     chrome_options.add_argument('--no-sandbox')         # 必须：解决权限问题
     chrome_options.add_argument('--disable-dev-shm-usage') # 必须：防止内存溢出
@@ -43,7 +42,7 @@ def get_apple_ids():
         driver = start_browser()
         print(">>> [hao456] 正在访问数据源...")
         driver.get("https://xdd.net.tr/share/wRjpcyhumY") 
-        wait = WebDriverWait(driver, 30) # 延长等待时间
+        wait = WebDriverWait(driver, 30)
         
         # 1. 密码解锁逻辑
         print(">>> [hao456] 正在输入解锁密码...")
@@ -54,7 +53,6 @@ def get_apple_ids():
         submit_btn = driver.find_element(By.CSS_SELECTOR, "button, .btn-primary")
         driver.execute_script("arguments[0].click();", submit_btn)
         
-        # 增加等待跳转和加载的时间
         time.sleep(12) 
         
         # 2. 解析账号数据
@@ -69,7 +67,6 @@ def get_apple_ids():
             username = user_btns[i].get_attribute("data-clipboard-text") or user_btns[i].text.strip()
             password = pass_btns[i].get_attribute("data-clipboard-text") or pass_btns[i].text.strip()
             
-            # 过滤无效信息
             if username and password and "@" in username and "http" not in username.lower():
                 res = (f"👤 账号：`{escape_markdown(username)}`\n"
                        f"🔑 密码：`{escape_markdown(password)}`")
@@ -84,10 +81,10 @@ def get_apple_ids():
     finally:
         if driver:
             print(">>> [hao456] 正在关闭浏览器释放内存...")
-            driver.quit() # 必须执行，否则会阻塞下一个脚本运行
+            driver.quit()
 
 def send_to_telegram(content_list):
-    token = os.environ.get('BOT_TOKEN') # 从 Render 环境获取
+    token = os.environ.get('BOT_TOKEN')
     chat_id = "@yinlianID"
     if not content_list: return
 
@@ -97,19 +94,28 @@ def send_to_telegram(content_list):
     
     header = "🚀 *最新 Apple ID 共享更新【2】*"
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
-        notice = (
+    
+    # 广告与提示内容
+    ad_text = (
+        "共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，"
+        "请持续关注频道等待两个小时更新，请谅解\n\n"
+        "❤️ 欢迎关注我们频道：@yinlianID\n"
+        "            客    服：@zzyyy"
+    )
+
+    # 汇总最终文本
+    full_caption = (
+        f"{header}\n\n{body}\n\n"
         f"🕒 更新时间：{escape_markdown(bj_time)}\n"
         f"⚠️ *严禁在设置/iCloud中登录！*\n\n"
-        f"共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待两个小时更新，请谅解\n\n"
-        f"❤️ *欢迎关注我们频道：*@{escape_markdown('yinlianID')}\n"
-        f"          *客    服：*@{escape_markdown('zzyyy')}"
+        f"──────────────\n\n"
+        f"{escape_markdown(ad_text)}"
     )
 
     # 发送逻辑
     url = f"https://api.telegram.org/bot{token}/sendPhoto"
     data = {"chat_id": chat_id, "photo": img_url, "caption": full_caption, "parse_mode": "MarkdownV2"}
     
-    # 处理字数超限
     if len(full_caption) > 1024:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
         data = {"chat_id": chat_id, "text": f"[​]({img_url}){full_caption}", "parse_mode": "MarkdownV2"}
