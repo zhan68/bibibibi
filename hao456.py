@@ -116,9 +116,9 @@ def send_to_telegram(content_list):
     
     if len(full_caption) > 1024:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        data = {"chat_id": chat_id, "text": f"[​]({img_url}){full_caption}", "parse_mode": "MarkdownV2"}
+        data = {"chat_id": chat_id, "text": f"[​]({img_url}){full_caption}","parse_mode": "MarkdownV2", "parse_mode": "MarkdownV2"}
     
-    res = requests.post(url, json=data)
+    res = requests.post(url, json=data, timeout=20)
     print(f">>> [hao456] 推送结果: {res.status_code}")
 
 if __name__ == "__main__":
