@@ -75,7 +75,7 @@ def send_to_telegram(content_list):
     if not token or not content_list: return
 
     # 1. 标题
-    header = f"🚀 *{escape_markdown('最新 Apple ID 共享更新')}*"
+    header = f"🚀 *{escape_markdown('最新 Apple ID 共享更新【5】')}*"
     # 2. 正文
     body = "\n\n──────────────\n\n".join(content_list)
     # 3. 时间与警告
