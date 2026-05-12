@@ -60,8 +60,7 @@ def get_apple_ids():
                 continue
                 
             if username and password:
-                res = (f"📍 地区：{escape_markdown('共享账号')}\n"
-                       f"👤 账号：`{escape_markdown(username)}`\n"
+                res = (f"👤 账号：`{escape_markdown(username)}`\n"
                        f"🔑 密码：`{escape_markdown(password)}`")
                 account_data.append(res)
         
