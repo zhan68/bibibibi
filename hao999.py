@@ -49,8 +49,9 @@ def get_apple_ids():
                 password = pass_buttons[i].get_attribute("data-clipboard-text")
                 
                 if "@" in username and password:
-                    res = (f"👤 账号：`{escape_markdown(username)}`\n"
-                           f"🔑 密码：`{escape_markdown(password)}`")
+                res = (f"📍 地区：{escape_markdown('共享账号')}\n"
+                       f"👤 账号：`{escape_markdown(username)}`\n"
+                       f"🔑 密码：`{escape_markdown(password)}`")
                     account_data.append(res)
             except:
                 continue
