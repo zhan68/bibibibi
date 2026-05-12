@@ -24,8 +24,6 @@ def start_browser():
     chrome_options.add_argument('--disable-dev-shm-usage') # 必须：防止内存溢出
     chrome_options.add_argument('--disable-gpu')        # 禁用GPU节省资源
     
-    # 指定 Chrome 二进制文件路径 (Render 镜像默认路径)
-    chrome_options.binary_location = "/usr/bin/google-chrome"
     
     # 禁止加载图片，大幅减少内存占用 (Render 只有 512MB)
     chrome_options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
