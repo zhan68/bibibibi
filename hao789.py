@@ -102,9 +102,10 @@ def send_to_telegram(content_list):
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     
     ad_text = (
-        "共享🆔不能保持永久性，请第一时间下载。如果 ID 不可用，请等待下次更新。\n\n"
-        "❤️ 关注频道：@yinlianID\n"
-        "客服：@zzyyy"
+        "*共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，"
+        "请持续关注频道等待两个小时更新，请谅解*\n\n"
+        "*❤️ 欢迎关注我们频道：@yinlianID*\n"
+        "            *客    服：@zzyyy*"
     )
 
     full_caption = (
