@@ -18,13 +18,12 @@ def escape_markdown(text):
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
 def get_apple_ids():
-    """解析目标 iframe 中的 Apple ID 数据"""
+    """全量抓取并智能匹配账号密码"""
     chrome_options = Options()
     chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
-    # 模拟真实浏览器
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
     driver = None
@@ -32,34 +31,35 @@ def get_apple_ids():
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
         driver.set_page_load_timeout(60)
         
-        # 直接访问包含账号的实际页面（iframe源地址）
         print(">>> 正在访问账号分发页面...")
+        # 直接穿透 iframe 访问源地址以提高稳定性
         driver.get("https://aunlock.laomaos.com/share/AlRBxzPEIC")
         
-        # 等待账号元素加载
+        # 等待任意带有数据的按钮加载
         wait = WebDriverWait(driver, 30)
-        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "copy-btn")))
+        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-clipboard-text]")))
         
-        # 提取所有包含账号信息的按钮
-        # 根据一般此类页面的逻辑，账号和密码通常在 data-clipboard-text 属性中
-        buttons = driver.find_elements(By.CLASS_NAME, "copy-btn")
+        # 获取所有具备 data-clipboard-text 属性的元素
+        elements = driver.find_elements(By.CSS_SELECTOR, "[data-clipboard-text]")
+        raw_values = [el.get_attribute("data-clipboard-text").strip() for el in elements if el.get_attribute("data-clipboard-text")]
         
         account_data = []
-        # 每两个按钮通常组成一对账号密码
-        for i in range(0, len(buttons), 2):
-            try:
-                if i + 1 < len(buttons):
-                    username = buttons[i].get_attribute("data-clipboard-text")
-                    password = buttons[i+1].get_attribute("data-clipboard-text")
-                    
-                    if username and "@" in username and password:
-                        res = (f"👤 账号：`{escape_markdown(username)}`\n"
-                               f"🔑 密码：`{escape_markdown(password)}`")
-                        account_data.append(res)
-            except:
-                continue
+        # 智能双步进逻辑：两两配对，并验证第一个是否为邮箱格式
+        i = 0
+        while i < len(raw_values) - 1:
+            user = raw_values[i]
+            pwd = raw_values[i+1]
+            
+            # 如果当前项是账号，则将其与下一项配对
+            if "@" in user:
+                res = (f"👤 账号：`{escape_markdown(user)}`\n"
+                       f"🔑 密码：`{escape_markdown(pwd)}`")
+                account_data.append(res)
+                i += 2 # 跳过已配对的两个
+            else:
+                i += 1 # 如果不是账号，往后挪一位继续找
         
-        print(f">>> 成功抓取到 {len(account_data)} 个账号")
+        print(f">>> 成功解析出 {len(account_data)} 组账号密码")
         return account_data
     except Exception as e:
         print(f"❌ 抓取异常: {e}")
@@ -69,22 +69,22 @@ def get_apple_ids():
             driver.quit()
 
 def send_to_telegram(content_list):
-    """发送带加粗格式的消息"""
+    """发送带加粗广告的消息"""
     token = os.environ.get('BOT_TOKEN')
     chat_id = "@yinlianID"
     if not token or not content_list: return
 
-    # 1. 标题
+    # 1. 标题与正文
     header = f"🚀 *{escape_markdown('最新 Apple ID 共享更新【5】')}*"
-    # 2. 正文
     body = "\n\n──────────────\n\n".join(content_list)
-    # 3. 时间与警告
+    
+    # 2. 时间与警告
     tz_bj = timezone(timedelta(hours=8))
     bj_time = datetime.now(tz_bj).strftime('%Y-%m-%d %H:%M:%S')
     time_str = f"🕒 更新时间：{escape_markdown(bj_time)}"
     warning_str = f"⚠️ *{escape_markdown('警告：严禁在设置/iCloud中登录！')}*"
     
-    # 4. 加粗文案 (MarkdownV2 语法)
+    # 3. 全加粗广告文案
     ad_text = (
         f"*共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，"
         f"请持续关注频道等待两个小时更新，请谅解*\n\n"
@@ -114,7 +114,7 @@ def send_to_telegram(content_list):
     try:
         res = requests.post(url, json=payload, timeout=20)
         if res.status_code == 200:
-            print(">>> 推送成功！已应用加粗格式。")
+            print(">>> 推送成功！已应用全加粗广告语。")
         else:
             print(f">>> 推送失败: {res.text}")
     except Exception as e:
@@ -125,3 +125,4 @@ if __name__ == "__main__":
     data = get_apple_ids()
     if data:
         send_to_telegram(data)
+    print("--- 任务结束 ---")
