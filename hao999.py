@@ -18,41 +18,44 @@ def escape_markdown(text):
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
 def get_apple_ids():
-    """针对 pg.xxjiajia.com 的抓取逻辑"""
+    """解析目标 iframe 中的 Apple ID 数据"""
     chrome_options = Options()
     chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
-    # 禁用图片以节省内存
-    chrome_options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
+    # 模拟真实浏览器
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
     driver = None
     try:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-        driver.set_page_load_timeout(45)
-        print(">>> 正在访问 pg.xxjiajia.com...")
-        driver.get("https://pg.xxjiajia.com") 
+        driver.set_page_load_timeout(60)
         
-        wait = WebDriverWait(driver, 20)
-        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "copy-pass-btn")))
+        # 直接访问包含账号的实际页面（iframe源地址）
+        print(">>> 正在访问账号分发页面...")
+        driver.get("https://aunlock.laomaos.com/share/AlRBxzPEIC")
         
-        user_elements = driver.find_elements(By.CLASS_NAME, "card-text")
-        pass_buttons = driver.find_elements(By.CLASS_NAME, "copy-pass-btn")
+        # 等待账号元素加载
+        wait = WebDriverWait(driver, 30)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "copy-btn")))
+        
+        # 提取所有包含账号信息的按钮
+        # 根据一般此类页面的逻辑，账号和密码通常在 data-clipboard-text 属性中
+        buttons = driver.find_elements(By.CLASS_NAME, "copy-btn")
         
         account_data = []
-        for i in range(min(len(user_elements), len(pass_buttons))):
+        # 每两个按钮通常组成一对账号密码
+        for i in range(0, len(buttons), 2):
             try:
-                username = user_elements[i].text.strip()
-                password = pass_buttons[i].get_attribute("data-clipboard-text")
-                
-                # --- 此处为修复后的缩进逻辑 ---
-                if "@" in username and password:
-                    res = (f"👤 账号：`{escape_markdown(username)}`\n"
-                           f"🔑 密码：`{escape_markdown(password)}`")
-                    account_data.append(res)
-                # --------------------------
+                if i + 1 < len(buttons):
+                    username = buttons[i].get_attribute("data-clipboard-text")
+                    password = buttons[i+1].get_attribute("data-clipboard-text")
+                    
+                    if username and "@" in username and password:
+                        res = (f"👤 账号：`{escape_markdown(username)}`\n"
+                               f"🔑 密码：`{escape_markdown(password)}`")
+                        account_data.append(res)
             except:
                 continue
         
@@ -71,15 +74,17 @@ def send_to_telegram(content_list):
     chat_id = "@yinlianID"
     if not token or not content_list: return
 
+    # 1. 标题
     header = f"🚀 *{escape_markdown('最新 Apple ID 共享更新')}*"
+    # 2. 正文
     body = "\n\n──────────────\n\n".join(content_list)
-    
+    # 3. 时间与警告
     tz_bj = timezone(timedelta(hours=8))
     bj_time = datetime.now(tz_bj).strftime('%Y-%m-%d %H:%M:%S')
     time_str = f"🕒 更新时间：{escape_markdown(bj_time)}"
     warning_str = f"⚠️ *{escape_markdown('警告：严禁在设置/iCloud中登录！')}*"
     
-    # 广告加粗
+    # 4. 加粗文案 (MarkdownV2 语法)
     ad_text = (
         f"*共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，"
         f"请持续关注频道等待两个小时更新，请谅解*\n\n"
@@ -87,7 +92,14 @@ def send_to_telegram(content_list):
         f"            *客    服：@zzyyy*"
     )
     
-    full_caption = f"{header}\n\n{body}\n\n{time_str}\n{warning_str}\n\n──────────────\n\n{ad_text}"
+    full_caption = (
+        f"{header}\n\n"
+        f"{body}\n\n"
+        f"{time_str}\n"
+        f"{warning_str}\n\n"
+        f"──────────────\n\n"
+        f"{ad_text}"
+    )
 
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     url = f"https://api.telegram.org/bot{token}/sendPhoto"
@@ -109,6 +121,7 @@ def send_to_telegram(content_list):
         print(f">>> 请求异常: {e}")
 
 if __name__ == "__main__":
+    print("--- 启动 hao999.py 任务 ---")
     data = get_apple_ids()
     if data:
         send_to_telegram(data)
