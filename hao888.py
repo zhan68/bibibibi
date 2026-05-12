@@ -25,9 +25,6 @@ def start_browser():
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
     
-    # --- 显式指定二进制路径防止报错 ---
-    chrome_options.binary_location = "/usr/bin/google-chrome" 
-    
     # --- 内存压缩：不加载图片 ---
     chrome_options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
     
