@@ -108,9 +108,9 @@ def send_to_telegram(content_list):
         data = {"chat_id": chat_id, "photo": img_url, "caption": full_caption, "parse_mode": "MarkdownV2"}
     else:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        data = {"chat_id": chat_id, "text": f"[​]({img_url}){full_caption}", "parse_mode": "MarkdownV2"}
+        data = {"chat_id": chat_id, "text": f"[​]({img_url}){full_caption}","parse_mode": "MarkdownV2", "parse_mode": "MarkdownV2"}
     
-    res = requests.post(url, json=data)
+    res = requests.post(url, json=data, timeout=20)
     print(f">>> [hao123] 推送状态码: {res.status_code}")
 
 if __name__ == "__main__":
