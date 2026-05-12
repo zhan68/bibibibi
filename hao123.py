@@ -79,36 +79,33 @@ def send_to_telegram_fixed(content_list):
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     
     # 2. 构建纯文本标题和主体
-    # 注意：MarkdownV2 不支持在Caption中，我改用普通Markdown或纯文本
-    header = "🚀 最新 Apple ID 共享更新"
+    # 修改部分：加粗指定标题
+    header = f"**{escape_markdown('🚀 最新 Apple ID 共享更新【4】')}**"
     body = "\n\n──────────────\n\n".join(content_list)
     
     # 3. 北京时间
     tz_bj = timezone(timedelta(hours=8))
     bj_time = datetime.now(tz_bj).strftime('%Y-%m-%d %H:%M:%S')
     
-    # 4. 底部警告 (普通Markdown加粗用 **)
+    # 4. 底部警告 (修改部分：加粗指定文字)
     warning_section = (
         f"\n\n🕒 更新时间：{escape_markdown(bj_time)}\n"
-        f"⚠️ **警告：严禁在设置/iCloud中登录！**"
+        f"**{escape_markdown('⚠️ 警告：严禁在设置/iCloud中登录！')}**"
     )
     
-    # 5. 公告内容与客服信息 (全加粗)
+    # 5. 公告内容与客服信息 (修改部分：加粗指定文字)
     notice_text = "共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待两个小时更新，请谅解"
     announcement = (
         f"\n\n**{escape_markdown(notice_text)}**\n\n"
-        f"❤️ **欢迎关注我们频道：**@{escape_markdown('yinlianID')}\n"
-        f"            **客    服：**@{escape_markdown('zzyyy')}"
+        f"**{escape_markdown('❤️ 欢迎关注我们频道：')}**@{escape_markdown('yinlianID')}\n"
+        f"          **{escape_markdown('客    服：')}**@{escape_markdown('zzyyy')}"
     )
     
     # 组合说明文字 (Caption)
-    # 因为媒体组 Caption 限制为1024字符，我们这里尽量保留
     caption = f"{header}\n\n{body}{warning_section}{announcement}"
     
-    # 如果 Caption 超长，Telegram 可能会拒绝发送，需要在这里做一些长度检查逻辑(如果账号非常多)
     if len(caption) > 1024:
         print("警告: 消息超长，可能被截断。正在尝试清理干扰字符...")
-        # (简化逻辑，如果账号超多需要做复杂截断)
         pass
 
     # 6. 使用 sendMediaGroup 强制图片在前
@@ -128,17 +125,16 @@ def send_to_telegram_fixed(content_list):
     }
     
     # 发送请求
-    res = requests.post(url, data=payload) # 使用 data 而非 json，因为 media 是字符串化的 json
+    res = requests.post(url, data=payload) 
 
     if res.status_code == 200:
         print("推送成功！图片已置顶。")
     else:
         print(f"推送失败，错误详情: {res.text}")
-        # 如果 Markdown 报错，尝试使用纯文本作为 caption
         if "Bad Request: can't parse entities" in res.text:
             print("尝试以纯文本模式重新发送 Caption...")
             media_group[0]['parse_mode'] = ''
-            media_group[0]['caption'] = caption.replace("`", "") # 移除点击复制符号
+            media_group[0]['caption'] = caption.replace("`", "").replace("**", "")
             payload['media'] = json.dumps(media_group)
             requests.post(url, data=payload)
 
