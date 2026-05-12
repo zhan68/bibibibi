@@ -20,6 +20,7 @@ signal.signal(signal.SIGALRM, handler)
 signal.alarm(300)  # 5分钟强制结束
 
 def escape_markdown(text):
+    """转义 Telegram MarkdownV2 特殊字符"""
     escape_chars = r'_*[]()~`>#+-=|{}.!'
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
@@ -34,7 +35,6 @@ def start_browser():
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-    # 设置页面加载超时
     driver.set_page_load_timeout(60) 
     return driver
 
@@ -86,12 +86,22 @@ def send_to_telegram(content_list):
     
     header = "🚀 *最新 Apple ID 共享更新【1】*"
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
-        notice = (
+    
+    # 广告内容处理
+    ad_text = (
+        "共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，"
+        "请持续关注频道等待两个小时更新，请谅解\n\n"
+        "❤️ 欢迎关注我们频道：@yinlianID\n"
+        "            客    服：@zzyyy"
+    )
+
+    # 组合成完整的 caption
+    full_caption = (
+        f"{header}\n\n{body}\n\n"
         f"🕒 更新时间：{escape_markdown(bj_time)}\n"
         f"⚠️ *严禁在设置/iCloud中登录！*\n\n"
-        f"共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待两个小时更新，请谅解\n\n"
-        f"❤️ *欢迎关注我们频道：*@{escape_markdown('yinlianID')}\n"
-        f"          *客    服：*@{escape_markdown('zzyyy')}"
+        f"──────────────\n\n"
+        f"{escape_markdown(ad_text)}"
     )
 
     if len(full_caption) <= 1024:
