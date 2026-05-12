@@ -118,15 +118,21 @@ def send_to_telegram(content_list):
     header = "🚀 *最新 Apple ID 共享更新【4】*"
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     
-    notice = (
+    # 修复对齐并增加转义
+    ad_text = (
+        "共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，"
+        "请持续关注频道等待两个小时更新，请谅解\n\n"
+        "❤️ 欢迎关注我们频道：@yinlianID\n"
+        "            客    服：@zzyyy"
+    )
+
+    full_caption = (
+        f"{header}\n\n{body}\n\n"
         f"🕒 更新时间：{escape_markdown(bj_time)}\n"
         f"⚠️ *严禁在设置/iCloud中登录！*\n\n"
-        f"共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待两个小时更新，请谅解\n\n"
-        f"❤️ *欢迎关注我们频道：*@{escape_markdown('yinlianID')}\n"
-        f"          *客    服：*@{escape_markdown('zzyyy')}"
+        f"──────────────\n\n"
+        f"{escape_markdown(ad_text)}"
     )
-    
-    full_caption = f"{header}\n\n{body}\n\n{notice}"
 
     # 发送逻辑
     if len(full_caption) <= 1024:
@@ -141,7 +147,6 @@ def send_to_telegram(content_list):
 
 if __name__ == "__main__":
     data = get_apple_ids()
-    # 修正：只在有数据时调用一次发送函数
     if data:
         send_to_telegram(data)
         print("任务顺利完成并已推送。")
