@@ -55,8 +55,9 @@ def get_apple_ids():
                 
                 # 只有包含 @ 符号且有密码的才被视为有效账号
                 if "@" in username and password:
-                    res = (f"👤 账号：`{escape_markdown(username)}`\n"
-                           f"🔑 密码：`{escape_markdown(password)}`")
+                res = (f"📍 地区：{escape_markdown('共享账号')}\n"
+                       f"👤 账号：`{escape_markdown(username)}`\n"
+                       f"🔑 密码：`{escape_markdown(password)}`")
                     account_data.append(res)
             except:
                 continue
@@ -77,7 +78,7 @@ def send_to_telegram(content_list):
     if not token or not content_list: return
 
     # 1. 标题加粗
-    header = f"🚀 *{escape_markdown('最新 Apple ID 共享更新')}*"
+    header = f"🚀 *{escape_markdown('最新 Apple ID 共享更新【5】')}*"
     
     # 2. 账号正文拼接
     body = "\n\n──────────────\n\n".join(content_list)
