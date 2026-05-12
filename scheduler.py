@@ -32,8 +32,8 @@ def run_robot_loop():
                 print(f"--- [❌ {time.strftime('%X')}] {script} 发生错误: {e} ---")
             
             # 每个脚本跑完后，雷打不动休息 15 分钟
-            print(f"等待 30 分钟后切换到下一个脚本...")
-            time.sleep(900)
+            print(f"等待 15 分钟后切换到下一个脚本...")
+            time.sleep(10)
 
 if __name__ == "__main__":
     # [span_0](start_span)启动健康检查，防止 Render 关机[span_0](end_span)
