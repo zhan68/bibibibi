@@ -88,12 +88,12 @@ def get_apple_ids():
     finally:
         if driver:
             print("正在关闭浏览器并释放资源...")
-            driver.quit() # --- 核心：必须彻底退出以释放内存 ---
+            driver.quit()
 
 def send_to_telegram(content_list):
     token = os.environ.get('BOT_TOKEN')
     chat_id = "@yinlianID"
-    if not content_list: return
+    if not token or not content_list: return
 
     body = "\n\n──────────────\n\n".join(content_list)
     # 北京时间计算
@@ -101,12 +101,22 @@ def send_to_telegram(content_list):
     
     header = "🚀 *最新 Apple ID 共享更新【3】*"
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
-        notice = (
+    
+    # 广告内容
+    ad_text = (
+        "共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，"
+        "请持续关注频道等待两个小时更新，请谅解\n\n"
+        "❤️ 欢迎关注我们频道：@yinlianID\n"
+        "            客    服：@zzyyy"
+    )
+
+    # 组合成完整的 caption
+    full_caption = (
+        f"{header}\n\n{body}\n\n"
         f"🕒 更新时间：{escape_markdown(bj_time)}\n"
         f"⚠️ *严禁在设置/iCloud中登录！*\n\n"
-        f"共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待两个小时更新，请谅解\n\n"
-        f"❤️ *欢迎关注我们频道：*@{escape_markdown('yinlianID')}\n"
-        f"          *客    服：*@{escape_markdown('zzyyy')}"
+        f"──────────────\n\n"
+        f"{escape_markdown(ad_text)}"
     )
 
     # Telegram 发送逻辑
@@ -124,4 +134,4 @@ if __name__ == "__main__":
     data = get_apple_ids()
     if data:
         send_to_telegram(data)
-    print("--- hao789.py 任务执行结束 ---") # 打印此行说明程序已正常退出
+    print("--- hao789.py 任务执行结束 ---")
