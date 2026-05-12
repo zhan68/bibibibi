@@ -1,4 +1,4 @@
-selenium
-requests
-webdriver-manager
+selenium==4.43.0
+requests==2.34.0
+webdriver-manager==4.0.2
 playwright
