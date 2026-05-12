@@ -17,40 +17,41 @@ def escape_markdown(text):
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
 def start_browser():
-    """统一配置浏览器，适配 Render Docker 环境"""
+    """优化后的配置，适配 Docker 并防止假死"""
     chrome_options = Options()
-    # --- Render 生产环境必须参数 ---
     chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
-    # 内存优化：禁止加载图片
+    chrome_options.add_argument('--disable-extensions')
+    # 强制指定 Docker 镜像中的 Chrome 路径
+    chrome_options.binary_location = "/usr/bin/google-chrome"
+    
+    # 禁用图片加载以节省流量和内存
     chrome_options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1')
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-    return driver
-
-def send_error_to_tg(msg, photo_path=None):
-    """抓取失败时发送报告"""
-    token = os.environ.get('BOT_TOKEN')
-    chat_id = "@yinlianID"
-    if not token or not photo_path: return
     
-    url = f"https://api.telegram.org/bot{token}/sendPhoto"
-    try:
-        with open(photo_path, 'rb') as photo:
-            requests.post(url, data={'chat_id': chat_id, 'caption': f"❌ 源3抓取失败报告\n{msg}"}, files={'photo': photo})
-    except Exception as e:
-        print(f"发送报错通知失败: {e}")
+    # 【关键】设置页面加载超时，防止因网络卡顿导致整个系统卡死
+    driver.set_page_load_timeout(45)
+    return driver
 
 def get_apple_ids():
     driver = None
     try:
         driver = start_browser()
-        print(">>> 正在访问源3(Moe)页面...")
-        driver.get("https://appleid.moe233.app/share/GURdOstilD")
-        wait = WebDriverWait(driver, 30)
+        print(">>> [hao789] 正在访问源3(Moe)页面...")
+        
+        # 尝试访问页面
+        try:
+            driver.get("https://appleid.moe233.app/share/GURdOstilD")
+        except Exception as e:
+            print(f">>> [hao789] 页面加载超时或失败: {e}")
+            return None
+
+        # 缩短等待时间，如果 15 秒还没加载出来，说明该源暂时不可用
+        wait = WebDriverWait(driver, 15)
         
         # 等待关键按钮加载
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "copy-btn")))
@@ -63,30 +64,27 @@ def get_apple_ids():
             username = user_btns[i].get_attribute("data-clipboard-text") or user_btns[i].text.strip()
             password = pass_btns[i].get_attribute("data-clipboard-text") or pass_btns[i].text.strip()
             
-            # 过滤无效项
-            if not username or "@" not in username or "http" in username.lower():
+            if not username or "@" not in username:
                 continue
                 
             res = (f"👤 账号：`{escape_markdown(username)}`\n"
                    f"🔑 密码：`{escape_markdown(password)}`")
             account_data.append(res)
         
-        print(f"成功抓取到 {len(account_data)} 个账号。")
+        print(f">>> [hao789] 成功抓取到 {len(account_data)} 个账号。")
         return account_data
 
     except Exception as e:
-        print(f"❌ hao789 运行异常: {e}")
-        if driver:
-            try:
-                scr_path = "error_hao789.png"
-                driver.save_screenshot(scr_path)
-                send_error_to_tg(f"hao789 抓取异常: {str(e)[:100]}", scr_path)
-            except: pass
+        print(f"❌ [hao789] 运行异常: {e}")
+        # 【内存保护】取消截图功能，防止 Render 512MB 内存溢出
         return None
     finally:
         if driver:
-            print("正在关闭浏览器并释放资源...")
-            driver.quit()
+            print(">>> [hao789] 正在关闭浏览器并释放资源...")
+            try:
+                driver.quit()
+            except:
+                pass
 
 def send_to_telegram(content_list):
     token = os.environ.get('BOT_TOKEN')
@@ -94,13 +92,11 @@ def send_to_telegram(content_list):
     if not token or not content_list: return
 
     body = "\n\n──────────────\n\n".join(content_list)
-    # 北京时间计算
     bj_time = (datetime.now(timezone.utc) + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')
     
     header = "🚀 *最新 Apple ID 共享更新【3】*"
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     
-    # 广告内容
     ad_text = (
         "共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，"
         "请持续关注频道等待两个小时更新，请谅解\n\n"
@@ -108,7 +104,6 @@ def send_to_telegram(content_list):
         "            客    服：@zzyyy"
     )
 
-    # 组合成完整的 caption
     full_caption = (
         f"{header}\n\n{body}\n\n"
         f"🕒 更新时间：{escape_markdown(bj_time)}\n"
@@ -117,15 +112,16 @@ def send_to_telegram(content_list):
         f"{escape_markdown(ad_text)}"
     )
 
-    # Telegram 发送逻辑
-    if len(full_caption) <= 1024:
-        url = f"https://api.telegram.org/bot{token}/sendPhoto"
-        data = {"chat_id": chat_id, "photo": img_url, "caption": full_caption, "parse_mode": "MarkdownV2"}
-    else:
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        data = {"chat_id": chat_id, "text": f"[​]({img_url}){full_caption}", "parse_mode": "MarkdownV2"}
-    
-    requests.post(url, json=data)
+    try:
+        if len(full_caption) <= 1024:
+            url = f"https://api.telegram.org/bot{token}/sendPhoto"
+            data = {"chat_id": chat_id, "photo": img_url, "caption": full_caption, "parse_mode": "MarkdownV2"}
+        else:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            data = {"chat_id": chat_id, "text": f"[​]({img_url}){full_caption}", "parse_mode": "MarkdownV2"}
+        requests.post(url, json=data, timeout=20)
+    except Exception as e:
+        print(f">>> [hao789] 推送失败: {e}")
 
 if __name__ == "__main__":
     print("--- 启动 hao789.py 任务 ---")
