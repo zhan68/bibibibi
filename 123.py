@@ -28,23 +28,35 @@ def run_robot_loop():
             current_time = time.strftime('%Y-%m-%d %H:%M:%S')
             print(f"\n--- [🕒 {current_time}] 准备执行: {script} ---")
             
+            success = False
             try:
-                # 设定 5 分钟超时保护，防止单个脚本卡死导致整个流程停止
-                subprocess.run(["python", script], timeout=300) 
+                # 设定 5 分钟超时保护，防止单个脚本卡死
+                # 使用 check=True 配合异常捕获
+                subprocess.run(["python", script], timeout=300, check=True) 
                 print(f"--- [✅ {time.strftime('%X')}] {script} 正常结束 ---")
+                success = True
             except subprocess.TimeoutExpired:
-                print(f"--- [⚠️ {time.strftime('%X')}] {script} 运行超时，已强制跳过 ---")
+                print(f"--- [⚠️ {time.strftime('%X')}] {script} 运行超时(5分钟)，已强制跳过 ---")
+            except subprocess.CalledProcessError:
+                print(f"--- [❌ {time.strftime('%X')}] {script} 脚本内部报错退出 ---")
             except Exception as e:
-                print(f"--- [❌ {time.strftime('%X')}] {script} 发生错误: {e} ---")
+                print(f"--- [❌ {time.strftime('%X')}] {script} 系统异常: {e} ---")
             
-            # 每个脚本跑完后，休息 15 分钟 (900秒)
-            # 一轮跑完（4个脚本）总计耗时约 65-70 分钟
-            print(f">>> [System] 等待 15 分钟后切换到下一个脚本...")
-            time.sleep(900)
+            # --- 智能休息逻辑 ---
+            if success:
+                # 脚本成功运行，按原计划休息 15 分钟
+                print(f">>> [System] 脚本运行成功，等待 15 分钟...")
+                time.sleep(900)
+            else:
+                # 脚本失败（如 hao789 死机），仅休息 2 分钟便尝试下一个
+                # 这样可以防止某一个源坏掉导致整个下午都没更新
+                print(f">>> [⚠️ System] 脚本异常，为了保活，将在 2 分钟后切换下一个...")
+                time.sleep(120)
 
 if __name__ == "__main__":
-    # 1. 在后台线程启动健康检查，防止 Render 因无 Web 请求而关机
+    # 1. 在后台线程启动健康检查
     threading.Thread(target=run_server, daemon=True).start()
     
     # 2. 启动脚本顺序调度主循环
+    print(">>> [System] 正在启动 Docker 自动化调度集群...")
     run_robot_loop()
