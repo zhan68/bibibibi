@@ -13,8 +13,9 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 def escape_markdown(text):
-    """转义 Telegram MarkdownV2 特殊字符"""
-    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    """转义 Telegram MarkdownV2 特殊字符，注意不能转义我们要用的格式符号如 * 和 ` """
+    # 这里的转义去掉了 * 和 `，因为我们要手动控制它们
+    escape_chars = r'_[]()~>#+-=|{}.!'
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
 def get_apple_ids():
@@ -27,20 +28,17 @@ def get_apple_ids():
 
     try:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-        driver.get("https://idfree.top/") # 目标网站
+        driver.get("https://idfree.top/") 
         wait = WebDriverWait(driver, 30)
         
-        # 1. 点击确认按钮解除限制
         try:
             confirm_btn = wait.until(EC.element_to_be_clickable((By.ID, "confirmProceed")))
             driver.execute_script("arguments[0].click();", confirm_btn)
-        except Exception as e:
-            print(f"确认按钮不存在或不可点击: {e}")
+        except Exception:
+            pass
 
-        # 2. 等待 JS 渲染
         time.sleep(8) 
         
-        # 3. 解析账号
         accounts = driver.find_elements(By.CSS_SELECTOR, "#accountList > div")
         account_data = []
         
@@ -52,9 +50,9 @@ def get_apple_ids():
                     password = inputs[1].get_attribute("value")
                     
                     if username and password:
-                        # 格式化账号信息，使用反引号支持点击复制
+                        # 账号信息排版
                         res = (f"📍 地区：{escape_markdown('共享账号')}\n"
-                               f"👤 账号：`{escape_markdown(username)}`\n"
+                               f"👤 账号：\n`{escape_markdown(username)}`\n"
                                f"🔑 密码：`{escape_markdown(password)}`")
                         account_data.append(res)
             except:
@@ -67,48 +65,49 @@ def get_apple_ids():
         return None
 
 def send_to_telegram_fixed(content_list):
-    """通过发送媒体组强制图片置顶并加粗特定文本"""
+    """发送带格式的消息"""
     token = os.environ.get('BOT_TOKEN')
     chat_id = "@yinlianID"
     
     if not content_list:
-        print("未获取到有效数据，停止推送")
+        print("未获取到有效数据")
         return
 
-    # 1. 顶部图片
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     
-    # 2. 构建加粗标题和主体
-    # 使用 ** 包裹 escape 后的文字
-    header = f"**{escape_markdown('🚀 最新 Apple ID 共享更新')}**"
-    body = "\n\n──────────────\n\n".join(content_list)
+    # --- 核心修改：严格遵循 MarkdownV2 加粗语法 ---
     
-    # 3. 北京时间
+    # 1. 标题加粗
+    header = f"🚀 *{escape_markdown('最新 Apple ID 共享更新')}*"
+    
+    # 2. 账号主体
+    body = "\n\n" + "\n\n──────────────\n\n".join(content_list)
+    
+    # 3. 时间与警告
     tz_bj = timezone(timedelta(hours=8))
     bj_time = datetime.now(tz_bj).strftime('%Y-%m-%d %H:%M:%S')
+    time_str = f"🕒 更新时间：{escape_markdown(bj_time)}"
+    # 警告整行加粗
+    warning_str = f"⚠️ *{escape_markdown('警告：严禁在设置/iCloud中登录！')}*"
     
-    # 4. 加粗警告部分
-    warning_text = escape_markdown("⚠️ 警告：严禁在设置/iCloud中登录！")
-    warning_section = (
-        f"\n\n🕒 更新时间：{escape_markdown(bj_time)}\n"
-        f"**{warning_text}**"
-    )
-    
-    # 5. 加粗公告内容与客服信息
+    # 4. 公告内容（整段加粗）
     notice_val = "共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待两个小时更新，请谅解"
-    announcement = (
-        f"\n\n**{escape_markdown(notice_val)}**\n\n"
-        f"**{escape_markdown('❤️ 欢迎关注我们频道：')}@{escape_markdown('yinlianID')}**\n"
-        f"            **{escape_markdown('客    服：')}@{escape_markdown('zzyyy')}**"
+    notice_str = f"*{escape_markdown(notice_val)}*"
+    
+    # 5. 底部客服信息（标签部分加粗）
+    follow_str = f"❤️ *{escape_markdown('欢迎关注我们频道：')}*@yinlianID"
+    service_str = f"            *{escape_markdown('客    服：')}*@zzyyy"
+    
+    # 组合最终 Caption
+    caption = (
+        f"{header}\n{body}\n\n"
+        f"{time_str}\n"
+        f"{warning_str}\n\n"
+        f"{notice_str}\n\n"
+        f"{follow_str}\n"
+        f"{service_str}"
     )
     
-    # 组合说明文字 (Caption)
-    caption = f"{header}\n\n{body}{warning_section}{announcement}"
-    
-    if len(caption) > 1024:
-        print("警告: 消息超长，可能被截断。")
-
-    # 6. 使用 sendMediaGroup 发送
     media_group = [
         {
             'type': 'photo',
@@ -127,17 +126,13 @@ def send_to_telegram_fixed(content_list):
     res = requests.post(url, data=payload)
 
     if res.status_code == 200:
-        print("推送成功！文本已按要求加粗。")
+        print("推送成功！已应用加粗格式。")
     else:
-        print(f"推送失败，错误详情: {res.text}")
-        # 如果 Markdown 报错，尝试去掉格式化发送纯文本
-        if "Bad Request: can't parse entities" in res.text:
-            print("解析失败，尝试回退到纯文本模式...")
-            media_group[0]['parse_mode'] = ''
-            media_group[0]['caption'] = caption.replace("**", "").replace("`", "")
-            payload['media'] = json.dumps(media_group)
-            requests.post(url, data=payload)
+        print(f"推送失败: {res.text}")
+        # 如果还是报错，说明某些特殊字符没处理好，打印出来排查
+        print(f"发送的内容是: {caption}")
 
 if __name__ == "__main__":
+    # 注意：确保环境变量 BOT_TOKEN 已设置
     data = get_apple_ids()
     send_to_telegram_fixed(data)
