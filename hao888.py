@@ -104,7 +104,7 @@ def send_to_telegram(content_list):
     notice = (
         f"🕒 更新时间：{escape_markdown(bj_time)}\n"
         f"⚠️ *警告：严禁在设置/iCloud中登录！*\n\n"
-        f"*共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待两个小时更新，请谅解*\n\n"
+        f"*共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待15分钟更新，请谅解*\n\n"
         f"❤️ *欢迎关注我们频道：*@{escape_markdown('yinlianID')}\n"
         f"          *客    服：*@{escape_markdown('zzyyy')}"
     )
