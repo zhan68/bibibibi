@@ -90,7 +90,7 @@ def send_to_telegram_fixed(content_list):
     warning_str = f"⚠️ *{escape_markdown('警告：严禁在设置/iCloud中登录！')}*"
     
     # 4. 公告内容（整段加粗）
-    notice_val = "共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待两个小时更新，请谅解"
+    notice_val = "共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待15分钟更新，请谅解"
     notice_str = f"*{escape_markdown(notice_val)}*"
     
     # 5. 底部客服信息（标签部分加粗）
