@@ -17,7 +17,7 @@ def run_server():
     server.serve_forever()
 
 def run_robot_loop():
-    scripts = ["hao123.py", "hao456.py", "hao789.py", "hao999.py"]
+    scripts = ["hao123.py", "hao456.py", "hao789.py", "hao888.py", "hao999.py"]
     while True:
         for script in scripts:
             print(f"\n--- [🕒 {time.strftime('%X')}] 准备执行: {script} ---")
