@@ -75,7 +75,7 @@ def get_apple_ids():
 
 def send_to_telegram(content_list):
     token = os.environ.get('BOT_TOKEN')
-    chat_id = "@yinlianID"
+    chat_id = "-1003965538399"
     if not content_list: return
 
     body = "\n\n──────────────\n\n".join(content_list)
