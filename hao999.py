@@ -34,7 +34,7 @@ def get_apple_ids():
     chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
-    # 使用现代桌面浏览器 User-Agent，防止在线文档对移动端进行特殊的动态样式混淆
+    # 模拟标准桌面浏览器，确保防爬虫策略不会隐藏隐藏属性
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
@@ -44,62 +44,60 @@ def get_apple_ids():
         print(f"开始访问页面: {target_url}")
         driver.get(target_url)
         
-        # 加大等待时间，给足在线文档解密和渲染表格的时间
-        print("等待网页动态数据渲染 (10秒)...")
-        time.sleep(10)
+        # 针对此类面板，给足 8 秒确保后台状态接口加载并刷新完毕
+        print("等待网页卡片和状态渲染 (8秒)...")
+        time.sleep(8)
+        
+        # 定位页面上所有的独立账号卡片模块（通常每个账号密码都在单独的块或行中）
+        # 这里使用多重容器定位，确保把每一个红框/绿框卡片都捕获到
+        cards = driver.find_elements(By.XPATH, "//div[contains(@class, 'panel') or contains(@class, 'card') or contains(@style, 'border')]")
+        
+        # 兜底：如果上面的多选择器没抓到，就直接抓取所有的复制账号按钮，然后反向找它们各自的包裹外壳
+        if not cards:
+            user_btns_fallback = driver.find_elements(By.XPATH, "//*[contains(text(), '复制账号')]")
+            cards = [btn.find_element(By.XPATH, "./ancestor::div[position()<=4]") for btn in user_btns_fallback]
+            
+        print(f"分析完毕：共定位到 {len(cards)} 个账号数据卡片")
         
         account_data = []
         
-        # 抓取页面中所有可能构成行、段落或单元格集合的容器节点
-        # 这可以物理碾压 <tr>、类名为 row 的 div 或者是纯文本行的 p
-        elements = driver.find_elements(By.CSS_SELECTOR, 'tr, .row, .grid-row, p, div[class*="line"], div[class*="row"]')
-        print(f"共扫描到可能包含数据的节点: {len(elements)} 个")
-        
-        for element in elements:
-            try:
-                line_text = element.text
-                if not line_text:
-                    continue
+        for index, card in enumerate(cards):
+            card_text = card.text
+            if not card_text:
+                continue
+            
+            # 核心过滤：只有当这个卡片明确包含“状态正常”或者“正常”时才进入
+            if "状态正常" in card_text or "正常" in card_text:
+                if "状态异常" in card_text or "异常" in card_text:
+                    continue # 排除可能包含异常的干扰卡片
                 
-                # 将同一行/块内的换行文本，使用 " | " 拼起来变成规整的长文本字符串
-                clean_line = " | ".join([part.strip() for part in line_text.split("\n") if part.strip()])
-                
-                # 核心过滤判定：当前行内必须包含“状态正常”或“正常”
-                if "正常" in clean_line or "状态正常" in clean_line:
-                    # 排除已经锁定的干扰项
-                    if "锁定" in clean_line or "异常" in clean_line:
-                        continue
-                        
-                    # 1. 提取邮箱账号
-                    email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', clean_line)
+                try:
+                    # 在当前正常卡片的内部，精准寻找对应的复制账号和复制密码按钮
+                    user_btn = card.find_element(By.XPATH, ".//*[contains(text(), '账号') or contains(@class, 'user') or contains(@class, 'copy')]")
+                    pass_btn = card.find_element(By.XPATH, ".//*[contains(text(), '密码') or contains(@class, 'pass')]")
                     
-                    if email_match:
-                        username = email_match.group(0)
-                        password = ""
+                    # 关键破局点：优先提取老毛面板中隐藏在属性里的真实账号密码明文
+                    username = user_btn.get_attribute("data-clipboard-text") or user_btn.get_attribute("data-text")
+                    password = pass_btn.get_attribute("data-clipboard-text") or pass_btn.get_attribute("data-text")
+                    
+                    # 兜底清洗：如果属性里没藏，说明可能用正则能从卡片内部标签洗出来
+                    if not username:
+                        email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', card_text)
+                        if email_match:
+                            username = email_match.group(0)
+                    
+                    # 如果拿到了数据，过滤掉非法项后加入队列
+                    if username and password and "@" in username:
+                        res = (f"👤 账号：`{escape_markdown(username.strip())}`\n"
+                               f"🔑 密码：`{escape_markdown(password.strip())}`")
                         
-                        # 2. 将整行切碎，寻找最像密码的独立字符串
-                        parts = [p.strip() for p in re.split(r'[\s|｜,，;；\t:]+', clean_line)]
-                        for part in parts:
-                            if part == username or not part:
-                                continue
-                            
-                            # 密码特征判定：不能包含中文、不含@、不含网址，长度在 5 到 22 位之间
-                            if not re.search(r'[\u4e00-\u9fa5]', part) and "@" not in part and "http" not in part:
-                                if 5 <= len(part) <= 22 and part not in ["正常", "状态正常"]:
-                                    password = part
-                                    break
-                        
-                        # 3. 只有账号和密码成功匹配才加入
-                        if username and password:
-                            res = (f"👤 账号：`{escape_markdown(username)}`\n"
-                                   f"🔑 密码：`{escape_markdown(password)}`")
-                            
-                            if res not in account_data:
-                                account_data.append(res)
-                                print(f"✅ [状态正常] 成功捕获账号: {username}")
-            except:
-                continue # 单行节点若提取失败，跳过并继续，防止因个别节点死循环
-                
+                        if res not in account_data:
+                            account_data.append(res)
+                            print(f"🎉【抓取成功】发现正常账号并成功提取明文: {username.strip()}")
+                except Exception as inner_e:
+                    # 单个卡片提取失败，跳过，不影响整体循环
+                    continue
+                    
         driver.quit()
         return account_data
         
@@ -131,7 +129,7 @@ def send_to_telegram(content_list):
         f"            *客    服：*@{escape_markdown('zzyyy')}"
     )
     
-    header = "🚀 *最新 Apple ID 共享更新【5】*"
+    header = "🚀 *最新 Apple ID 共享更新【3】*"
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     full_caption = f"{header}\n\n{body}\n\n{notice}"
 
