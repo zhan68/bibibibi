@@ -34,7 +34,9 @@ def get_apple_ids():
     chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
-    # 模拟标准桌面浏览器，确保防爬虫策略不会隐藏隐藏属性
+    
+    # 调整窗口分辨率，彻底模拟一台标准的桌面电脑，强制网页加载完整 DOM 树
+    chrome_options.add_argument('--window-size=1920,1080')
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
@@ -44,59 +46,70 @@ def get_apple_ids():
         print(f"开始访问页面: {target_url}")
         driver.get(target_url)
         
-        # 针对此类面板，给足 8 秒确保后台状态接口加载并刷新完毕
-        print("等待网页卡片和状态渲染 (8秒)...")
-        time.sleep(8)
-        
-        # 定位页面上所有的独立账号卡片模块（通常每个账号密码都在单独的块或行中）
-        # 这里使用多重容器定位，确保把每一个红框/绿框卡片都捕获到
-        cards = driver.find_elements(By.XPATH, "//div[contains(@class, 'panel') or contains(@class, 'card') or contains(@style, 'border')]")
-        
-        # 兜底：如果上面的多选择器没抓到，就直接抓取所有的复制账号按钮，然后反向找它们各自的包裹外壳
-        if not cards:
-            user_btns_fallback = driver.find_elements(By.XPATH, "//*[contains(text(), '复制账号')]")
-            cards = [btn.find_element(By.XPATH, "./ancestor::div[position()<=4]") for btn in user_btns_fallback]
-            
-        print(f"分析完毕：共定位到 {len(cards)} 个账号数据卡片")
+        # 针对该面板，给予 10 秒时间确保所有卡片文本解密完毕
+        print("等待网页卡片和状态渲染 (10秒)...")
+        time.sleep(10)
         
         account_data = []
+
+        # 【核心黑科技】：彻底抛弃 class 类名依赖，直接抓取页面上所有写着 "复制账号" 的元素
+        user_buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '复制账号')]")
+        print(f"分析完毕：共定位到 {len(user_buttons)} 组潜在账号按钮")
         
-        for index, card in enumerate(cards):
-            card_text = card.text
-            if not card_text:
-                continue
-            
-            # 核心过滤：只有当这个卡片明确包含“状态正常”或者“正常”时才进入
-            if "状态正常" in card_text or "正常" in card_text:
-                if "状态异常" in card_text or "异常" in card_text:
-                    continue # 排除可能包含异常的干扰卡片
+        for btn in user_buttons:
+            try:
+                # 寻找这个按钮往上走能包裹住“当前整个红框/绿框”的最近一层外壳父节点
+                # 我们通过 ancestor::div[position()<=5] 向上连追 5 层，直接把父壳提取出来
+                parent_card = btn.find_element(By.XPATH, "./ancestor::div[contains(@class, 'panel') or contains(@class, 'card') or contains(@class, 'item') or position()<=3]")
+                card_text = parent_card.text
                 
-                try:
-                    # 在当前正常卡片的内部，精准寻找对应的复制账号和复制密码按钮
-                    user_btn = card.find_element(By.XPATH, ".//*[contains(text(), '账号') or contains(@class, 'user') or contains(@class, 'copy')]")
-                    pass_btn = card.find_element(By.XPATH, ".//*[contains(text(), '密码') or contains(@class, 'pass')]")
+                # 只要发现这块数据里写着“正常”或“状态正常”，且没有被锁定的标志
+                if "正常" in card_text:
+                    if "异常" in card_text or "锁定" in card_text:
+                        continue # 被拦截：属于异常或锁定状态，跳过
                     
-                    # 关键破局点：优先提取老毛面板中隐藏在属性里的真实账号密码明文
-                    username = user_btn.get_attribute("data-clipboard-text") or user_btn.get_attribute("data-text")
-                    password = pass_btn.get_attribute("data-clipboard-text") or pass_btn.get_attribute("data-text")
+                    # 在这一个卡片的范围内，去抠“复制账号”和“复制密码”两个按钮
+                    acc_btn = parent_card.find_element(By.XPATH, "//*[contains(text(), '复制账号')]")
+                    pwd_btn = parent_card.find_element(By.XPATH, "//*[contains(text(), '复制密码')]")
                     
-                    # 兜底清洗：如果属性里没藏，说明可能用正则能从卡片内部标签洗出来
-                    if not username:
+                    # 抓取绑定的隐藏真实明文属性
+                    username = acc_btn.get_attribute("data-clipboard-text") or acc_btn.get_attribute("data-text")
+                    password = pwd_btn.get_attribute("data-clipboard-text") or pwd_btn.get_attribute("data-text")
+                    
+                    # 如果隐藏属性由于无头浏览器被隐藏，通过备用方案：直接用正则从父壳子文本里把可能出现的邮箱榨取出来
+                    if not username or "@" not in str(username):
                         email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', card_text)
                         if email_match:
                             username = email_match.group(0)
                     
-                    # 如果拿到了数据，过滤掉非法项后加入队列
-                    if username and password and "@" in username:
+                    if username and password:
                         res = (f"👤 账号：`{escape_markdown(username.strip())}`\n"
                                f"🔑 密码：`{escape_markdown(password.strip())}`")
                         
                         if res not in account_data:
                             account_data.append(res)
-                            print(f"🎉【抓取成功】发现正常账号并成功提取明文: {username.strip()}")
-                except Exception as inner_e:
-                    # 单个卡片提取失败，跳过，不影响整体循环
-                    continue
+                            print(f"🎉【抓取成功】状态正常 -> 成功抓取账号: {username.strip()}")
+            except Exception as inner_e:
+                # 如果单个卡片解析出错，不破坏大循环，继续往下找
+                continue
+
+        # 【终极兜底策略】：如果上述逻辑依然因为 DOM 隔离被返回 0，使用不依赖任何层级的“元素全排列洗数据法”
+        if not account_data:
+            print("⚠️ 层级卡片查找失败，触发系统终极文本流平铺提取法...")
+            all_elements = driver.find_elements(By.XPATH, "//*[contains(@data-clipboard-text, '@')]")
+            for el in all_elements:
+                u = el.get_attribute("data-clipboard-text")
+                if u and "@" in u:
+                    print(f"🔍 兜底检测到属性中藏匿有账号: {u}")
+                    # 寻找紧邻它的下一个元素作为密码
+                    try:
+                        p_el = el.find_element(By.XPATH, "./following-sibling::*[1]")
+                        p = p_el.get_attribute("data-clipboard-text") or p_el.text
+                        if p and len(p) >= 5:
+                            res = (f"👤 账号：`{escape_markdown(u.strip())}`\n"
+                                   f"🔑 密码：`{escape_markdown(p.strip())}`")
+                            account_data.append(res)
+                    except: pass
                     
         driver.quit()
         return account_data
@@ -133,7 +146,6 @@ def send_to_telegram(content_list):
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     full_caption = f"{header}\n\n{body}\n\n{notice}"
 
-    # 强制图片置顶逻辑
     url = f"https://api.telegram.org/bot{token}/sendPhoto"
     data = {"chat_id": chat_id, "photo": img_url, "caption": full_caption, "parse_mode": "MarkdownV2"}
     
