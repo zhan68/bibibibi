@@ -146,7 +146,7 @@ def send_to_telegram(content_list):
         f"            *客    服：*@{escape_markdown('zzyyy')}"
     )
     
-    header = "🚀 *最新 Apple ID 共享更新【3】*"
+    header = "🚀 *最新 Apple ID 共享更新【5】*"
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     full_caption = f"{header}\n\n{body}\n\n{notice}"
 
