@@ -94,7 +94,7 @@ def send_to_telegram_fixed(content_list):
     notice_str = f"*{escape_markdown(notice_val)}*"
     
     # 5. 底部客服信息（标签部分加粗）
-    follow_str = f"❤️ *{escape_markdown('欢迎关注我们频道：')}*@yinlianID"
+    follow_str = f"❤️ *{escape_markdown('欢迎关注我们交流群：')}*@bh888"
     service_str = f"            *{escape_markdown('客    服：')}*@zzyyy"
     
     # 组合最终 Caption
