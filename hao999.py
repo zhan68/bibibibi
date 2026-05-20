@@ -2,120 +2,101 @@ import os
 import requests
 import time
 import re
-import json
 from datetime import datetime, timedelta, timezone
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 
 def escape_markdown(text):
     """转义 Telegram MarkdownV2 特殊字符"""
     escape_chars = r'_*[]()~`>#+-=|{}.!'
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
-def send_error_to_tg(msg, photo_path=None):
-    """抓取失败时，发送网页截图到频道排查原因"""
-    token = os.environ.get('BOT_TOKEN')
-    chat_id = "@yinlianID"
-    if not token or not photo_path: return
+def get_apple_ids_by_api():
+    # 1. 从原网址 https://doc.bat520.cc/doc/8/ 中提取的核心分享特征 ID 是 "8"
+    share_id = "8"
     
-    url = f"https://api.telegram.org/bot{token}/sendPhoto"
-    try:
-        with open(photo_path, 'rb') as photo:
-            requests.post(url, data={'chat_id': chat_id, 'caption': f"❌ 抓取失败报告\n{msg}"}, files={'photo': photo})
-    except: pass
-
-def get_apple_ids():
-    chrome_options = Options()
-    chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-    chrome_options.add_argument('--window-size=1920,1080')
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
-
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    # 2. 拼接出老毛面板标准的后端异步解密 API 接口地址
+    api_url = f"https://doc.bat520.cc/api/share/{share_id}"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Referer": "https://doc.bat520.cc/doc/8/",
+        "X-Requested-With": "XMLHttpRequest"
+    }
+    
+    print(f"正在直接请求后端解密 API 接口: {api_url}")
     
     try:
-        target_url = "https://doc.bat520.cc/doc/8/"
-        print(f"开始访问页面: {target_url}")
-        driver.get(target_url)
+        # 直接发送网络请求，限时 15 秒防止挂起卡死
+        response = requests.get(api_url, headers=headers, timeout=15)
         
-        # 使用隐式智能等待，直到页面上渲染出带有 "border-success" 的正常账号绿色卡片
-        print("等待动态 Vue/React 组件解密渲染绿色正常卡片...")
-        wait = WebDriverWait(driver, 20)
+        if response.status_code != 200:
+            print(f"❌ 接口请求失败，状态码: {response.status_code}")
+            return None
+            
+        res_json = response.json()
         
-        # 核心策略：直接定位正常卡片（绿框 border-success）
-        # 这样就自动过滤掉了红框（border-danger 状态异常）的卡片！
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".card.border-success")))
+        # 验证接口返回状态 (老毛面板一般 code=200 或 status=1 代表成功)
+        if "data" not in res_json:
+            print("❌ 接口未返回有效账户数据，可能是 share_id 改变或接口需密码")
+            return None
+            
+        accounts_list = res_json["data"]
+        # 如果 data 嵌套在更深层，如 res_json["data"]["accounts"]
+        if isinstance(accounts_list, dict) and "accounts" in accounts_list:
+            accounts_list = accounts_list["accounts"]
+        elif isinstance(accounts_list, dict) and "list" in accounts_list:
+            accounts_list = accounts_list["list"]
+            
+        if not isinstance(accounts_list, list):
+            # 兼容：如果 data 直接是一个大字典，包裹了具体的列表
+            if isinstance(res_json["data"], dict):
+                accounts_list = res_json["data"].get("data", [])
         
-        # 提取所有状态为“正常”的绿色卡片
-        success_cards = driver.find_elements(By.CSS_SELECTOR, ".card.border-success")
-        print(f"分析完毕：成功锁定 {len(success_cards)} 个状态正常的绿色账号卡片")
+        print(f"API 成功返回，共获取到 {len(accounts_list)} 组底层账号数据。开始执行状态正常过滤...")
         
         account_data = []
         
-        for card in success_cards:
-            try:
-                # 1. 提取账号：直接在卡片顶部的 h5 标签中抓取明文
-                h5_element = card.find_element(By.TAG_NAME, "h5")
-                username = h5_element.text.strip()
-                
-                # 清洗账号，防止里面残留图标或空格
-                username = re.sub(r'^[^\w]+', '', username) 
-                
-                # 2. 精准寻找卡片内部的按钮
-                # 有些老毛面板的复制账号和复制密码按钮带有单独的 class 区分，这里直接捞取所有的 button
-                buttons = card.find_elements(By.TAG_NAME, "button")
-                if not buttons:
-                    # 兼容类似 a 标签或者带 .btn 类名的伪按钮
-                    buttons = card.find_elements(By.CSS_SELECTOR, "a, .btn, [class*='copy']")
-                
-                password = ""
-                # 3. 从这块正常卡片内部所有的按钮中，提取藏在属性里的密码
-                for btn in buttons:
-                    clip_text = btn.get_attribute("data-clipboard-text") or btn.get_attribute("data-text")
-                    if clip_text:
-                        clip_text = clip_text.strip()
-                        # 密码特征：不包含账号，不是邮箱，长度在 5 位以上
-                        if clip_text != username and "@" not in clip_text and len(clip_text) >= 5:
-                            password = clip_text
-                            break
-                
-                # 如果没在属性里抓到密码，尝试第二种老毛面板特征：第二个按钮通常是密码按钮，点击它或拿它的文本
-                if not password and len(buttons) >= 2:
-                    password = buttons[1].get_attribute("data-clipboard-text") or buttons[1].text.strip()
-
-                if username and password and "@" in username:
-                    res = (f"👤 账号：`{escape_markdown(username)}`\n"
-                           f"🔑 密码：`{escape_markdown(password)}`")
+        for item in accounts_list:
+            # 读取账号和密码
+            username = item.get("username") or item.get("account") or item.get("name")
+            password = item.get("password") or item.get("pwd")
+            
+            # 核心过滤判定：获取账号的运行状态
+            # 在老毛分享框架的数据库中：
+            # status 等于 1 或等于 "正常" / "状态正常" 代表完全可用的绿色卡片账户
+            status = item.get("status")
+            status_txt = str(item.get("status_txt", "") or item.get("remark", ""))
+            
+            is_valid = False
+            # 判断状态是否正常 (支持数字 1 判定或文本判定)
+            if status == 1 or status == "1" or "正常" in status_txt or status == "正常":
+                if "异常" not in status_txt and "锁定" not in status_txt:
+                    is_valid = True
                     
-                    if res not in account_data:
-                        account_data.append(res)
-                        print(f"🎉【抓取成功】状态正常 -> 账号: {username} | 密码: {password}")
-            except Exception as inner_e:
-                continue
+            if is_valid and username and password:
+                username = username.strip()
+                password = password.strip()
                 
-        driver.quit()
+                res = (f"👤 账号：`{escape_markdown(username)}`\n"
+                       f"🔑 密码：`{escape_markdown(password)}`")
+                
+                if res not in account_data:
+                    account_data.append(res)
+                    print(f"🎉【过滤通过】账号: {username} 状态确认为: [正常]")
+            else:
+                print(f"⚠️ [已跳过] 账号: {username} 状态不符 (status={status}, msg={status_txt})")
+                
         return account_data
-        
+
     except Exception as e:
-        scr_path = "error_moe.png"
-        try:
-            driver.save_screenshot(scr_path)
-            send_error_to_tg(f"抓取发生崩溃，已发送截图: {str(e)[:100]}", scr_path)
-        except: pass
-        driver.quit()
+        print(f"❌ API 穿透解析崩溃: {e}")
         return None
 
 def send_to_telegram(content_list):
     token = os.environ.get('BOT_TOKEN')
     chat_id = "@yinlianID"
     if not content_list: 
-        print("没有读取到任何[状态正常]的有效账号，取消推送。")
+        print("没有读取到任何[状态正常]的有效账号，取消本次 TG 推送。")
         return
 
     body = "\n\n──────────────\n\n".join(content_list)
@@ -130,7 +111,7 @@ def send_to_telegram(content_list):
         f"            *客    服：*@{escape_markdown('zzyyy')}"
     )
     
-    header = "🚀 *最新 Apple ID 共享更新【5】*"
+    header = "🚀 *最新 Apple ID 共享更新【3】*"
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     full_caption = f"{header}\n\n{body}\n\n{notice}"
 
@@ -145,5 +126,6 @@ def send_to_telegram(content_list):
     print(f"TG 发送完成，状态码: {res.status_code}")
 
 if __name__ == "__main__":
-    data = get_apple_ids()
+    # 直接运行极速 API 数据拉取
+    data = get_apple_ids_by_api()
     send_to_telegram(data)
