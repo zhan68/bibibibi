@@ -129,7 +129,7 @@ def get_apple_ids():
 
 def send_to_telegram(content_list):
     token = os.environ.get('BOT_TOKEN')
-    chat_id = "@yinlianID"
+    chat_id = "-1003965538399"
     if not content_list: 
         print("没有读取到任何[状态正常]的有效账号，取消本次 TG 推送。")
         return
