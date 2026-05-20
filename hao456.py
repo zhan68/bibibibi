@@ -84,7 +84,7 @@ def get_apple_ids():
 def send_error_to_tg(msg, photo_path=None):
     """当抓取失败时，发送截图到 Telegram 方便排查"""
     token = os.environ.get('BOT_TOKEN')
-    chat_id = "@yinlianID"
+    chat_id = "-1003965538399"
     if not token: return
     
     url = f"https://api.telegram.org/bot{token}/sendPhoto"
@@ -93,7 +93,7 @@ def send_error_to_tg(msg, photo_path=None):
 
 def send_to_telegram(content_list):
     token = os.environ.get('BOT_TOKEN')
-    chat_id = "@yinlianID"
+    chat_id = "-1003965538399"
     if not content_list: return
 
     # 1. 组装消息
