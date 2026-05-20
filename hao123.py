@@ -66,7 +66,7 @@ def get_apple_ids():
 def send_to_telegram_fixed(content_list):
     """发送带格式的消息"""
     token = os.environ.get('BOT_TOKEN')
-    chat_id = "@yinlianID"
+    chat_id = "-1003965538399"
     
     if not content_list:
         print("未获取到有效数据")
