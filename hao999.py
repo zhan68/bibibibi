@@ -7,8 +7,6 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 def escape_markdown(text):
@@ -21,66 +19,69 @@ def get_apple_ids():
     chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
+    # 模拟常见浏览器，防止被拦截
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
     
     try:
-        # 目标网址
         target_url = "https://doc.bat520.cc/doc/8/"
         print(f"开始访问页面: {target_url}")
         driver.get(target_url)
-        wait = WebDriverWait(driver, 30)
         
-        # 等待文档内容加载完成（这里根据该文档系统的通用表格特征等待 tr 或 td 渲染）
-        print("等待文档数据加载...")
-        wait.until(EC.presence_of_element_located((By.TAG_NAME, "table")))
-        time.sleep(5)  # 稍微延迟，确保数据完全从后端加载并渲染出来
+        # 强制等待 8 秒，给网页的 JavaScript 和网络请求充足的时间来渲染出文字内容
+        print("等待网页异步数据加载中 (8秒)...")
+        time.sleep(8)
+        
+        # 直接抓取整个页面的所有可见文本
+        page_text = driver.find_element(By.TAG_NAME, "body").text
+        print("网页文本获取成功，开始分析数据...")
         
         account_data = []
         
-        # 抓取表格中所有的行 (Row)
-        rows = driver.find_elements(By.TAG_NAME, "tr")
-        print(f"共检测到 {len(rows)} 行数据，开始解析...")
-
-        for row in rows:
-            # 获取当前行里的所有单元格 (Cell)
-            cells = row.find_elements(By.TAG_NAME, "td")
-            
-            # 如果单元格数量太少，说明不是有效的数据行（通常账号表格至少有 3 列以上：账号、密码、状态、地区等）
-            if len(cells) < 3:
-                continue
+        # 核心逻辑：按行切分网页文本进行检查
+        lines = page_text.split('\n')
+        print(f"当前页面共解析出 {len(lines)} 行文本")
+        
+        for index, line in enumerate(lines):
+            # 只有当前行或者紧接着的下一行包含“正常”或“状态正常”时，才视为有效账号段落
+            if "状态正常" in line or "正常" in line:
+                # 寻找上下 3 行范围内的邮箱（账号）和密码
+                search_range = lines[max(0, index-2):min(len(lines), index+3)]
+                combined_context = " ".join(search_range)
                 
-            # 将整行中每个格子的文本提取出来
-            row_text = [cell.text.strip() for cell in cells]
-            
-            # 将整行文本合并成一个字符串，用来查找关键字
-            combined_text = "".join(row_text)
-            
-            # 核心过滤：只有当这一行包含 "状态正常" 或 "正常" 时才进行解析
-            if "状态正常" in combined_text or "正常" in combined_text:
-                username = ""
-                password = ""
-                region = "源2-共享" # 默认地区
+                # 正则表达式匹配邮箱账号
+                email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', combined_context)
                 
-                # 正则匹配查找账号（通常是邮箱格式）
-                for text in row_text:
-                    if "@" in text and "." in text and not username:
-                        username = text
-                        continue
-                    # 匹配可能是密码的列（排除常见的中文状态和邮箱，剩下长得像密码的）
-                    if text and not any(x in text for x in ["正常", "锁定", "更新", "检测", "@", "http"]):
-                        # 简单过滤掉太短或含有大段中文的干扰项
-                        if len(text) >= 4 and not re.search(r'[\u4e00-\u9fa5]', text):
-                            password = text
-
-                # 如果成功提取到了账号和密码，则组装数据
-                if username and password:
-                    res = (f"📍 地区：{escape_markdown(region)}\n"
-                           f"👤 账号：`{escape_markdown(username)}`\n"
-                           f"🔑 密码：`{escape_markdown(password)}`")
-                    account_data.append(res)
-                    print(f"成功锁定正常账号: {username}")
+                if email_match:
+                    username = email_match.group(0)
+                    password = ""
+                    
+                    # 在这几行里寻找密码
+                    # 密码的特征：通常不含@、不含中文、不含网址、长度在5-25位之间
+                    words = combined_context.split()
+                    for word in words:
+                        word = word.strip()
+                        if word == username:
+                            continue
+                        if "@" not in word and "http" not in word and not re.search(r'[\u4e00-\u9fa5]', word):
+                            # 过滤掉一些状态词和多余的特殊符号
+                            if len(word) >= 5 and word not in ["状态正常", "正常", "密码：", "账号：", "状态："]:
+                                # 进一步清洗可能残留在密码前后的中文冒号等
+                                clean_word = re.sub(r'^[账号密码状态\s：:]+', '', word)
+                                if len(clean_word) >= 5:
+                                    password = clean_word
+                                    break
+                    
+                    if username and password:
+                        res = (f"📍 地区：{escape_markdown('源2-共享')}\n"
+                               f"👤 账号：`{escape_markdown(username)}`\n"
+                               f"🔑 密码：`{escape_markdown(password)}`")
+                        
+                        # 防止重复添加同一个账号
+                        if res not in account_data:
+                            account_data.append(res)
+                            print(f"✅ 成功提取到状态正常的账号: {username}")
 
         driver.quit()
         return account_data
@@ -97,7 +98,6 @@ def get_apple_ids():
         return None
 
 def send_error_to_tg(msg, photo_path=None):
-    """当抓取失败时，发送截图到 Telegram 方便排查"""
     token = os.environ.get('BOT_TOKEN')
     chat_id = "@yinlianID"
     if not token: return
@@ -116,7 +116,6 @@ def send_to_telegram(content_list):
         print("没有获取到有效账号，取消发送。")
         return
 
-    # 1. 组装消息
     body = "\n\n──────────────\n\n".join(content_list)
     tz_bj = timezone(timedelta(hours=8))
     bj_time = datetime.now(tz_bj).strftime('%Y-%m-%d %H:%M:%S')
@@ -129,11 +128,10 @@ def send_to_telegram(content_list):
         f"          *客    服：*@{escape_markdown('zzyyy')}"
     )
     
-    header = "🍎 *最新 Apple ID 共享更新【5】*"
+    header = "🍎 *最新 Apple ID 共享更新（备用源）*"
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     full_caption = f"{header}\n\n{body}\n\n{notice}"
 
-    # 2. 发送逻辑：优先图片模式，超长则切换文字模式
     if len(full_caption) < 1020:
         url = f"https://api.telegram.org/bot{token}/sendPhoto"
         payload = {"chat_id": chat_id, "photo": img_url, "caption": full_caption, "parse_mode": "MarkdownV2"}
