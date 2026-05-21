@@ -1,4 +1,4 @@
-selenium==4.43.0
-requests==2.34.0
-webdriver-manager==4.0.2
-playwright
+requests==2.32.3
+playwright==1.44.0
+selenium==4.9.1
+webdriver-manager==4.0.1
