@@ -14,115 +14,136 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 def escape_markdown(text):
     """转义 Telegram MarkdownV2 特殊字符"""
-    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    escape_chars = r'_[]()~>#+-=|{}.!'
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
 def get_apple_ids():
+    """获取并解析新网站的 Apple ID"""
     chrome_options = Options()
     chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
-    # 模拟真实移动端 User-Agent，降低被封概率
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1')
+    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-    
     try:
-        print("开始访问页面...")
-        driver.get("https://aunlock.laomaos.com/share/UnDjXSBtqh")
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+        driver.get("https://proxy4all.github.io/FreeShadowrocket/") 
         wait = WebDriverWait(driver, 30)
         
-        # --- 1. 强力密码解锁逻辑 ---
-        try:
-            print("正在寻找密码输入框...")
-            # 扩大搜索范围，寻找页面上任何 input
-            pwd_input = wait.until(EC.presence_of_element_located((By.TAG_NAME, "input")))
-            pwd_input.clear()
-            pwd_input.send_keys("112233")
-            
-            # 寻找提交按钮
-            submit_btn = driver.find_element(By.CSS_SELECTOR, "button, .btn-primary, input[type='submit']")
-            driver.execute_script("arguments[0].click();", submit_btn)
-            print("密码已提交，等待页面跳转...")
-            time.sleep(12) # 增加等待时长
-        except Exception as e:
-            print(f"密码环节处理异常: {e}")
-
-        # --- 2. 账号解析与过滤逻辑 ---
-        print("正在解析账号数据...")
-        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "copy-btn")))
+        # 等待页面加载
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        time.sleep(5) 
         
-        user_btns = driver.find_elements(By.CLASS_NAME, "copy-btn")
-        pass_btns = driver.find_elements(By.CLASS_NAME, "copy-pass-btn")
+        # 获取网页上所有的文本行
+        page_text = driver.find_element(By.TAG_NAME, "body").text
+        driver.quit()
         
+        lines = [line.strip() for line in page_text.split('\n') if line.strip()]
         account_data = []
-        for i in range(min(len(user_btns), len(pass_btns))):
-            username = user_btns[i].get_attribute("data-clipboard-text") or user_btns[i].text.strip()
-            password = pass_btns[i].get_attribute("data-clipboard-text") or pass_btns[i].text.strip()
-            
-            # 核心过滤：剔除包含网址的无效项
-            if "http" in username.lower() or "/" in username:
-                continue
-                
-            if username and password:
-                res = (f"👤 账号：`{escape_markdown(username)}`\n"
-                       f"🔑 密码：`{escape_markdown(password)}`")
-                account_data.append(res)
         
-        driver.quit()
+        # 精准顺序状态机匹配
+        for i in range(len(lines)):
+            current_line = lines[i]
+            
+            # 1. 检查当前行是否包含邮箱（即账号）
+            if "@" in current_line and ("账号" in current_line or "ID" in current_line or "mail" in current_line.lower()):
+                email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', current_line)
+                if email_match:
+                    username = email_match.group(0)
+                    password = None
+                    
+                    # 2. 从当前行往下寻找最近的密码行（通常在紧接着的 1-2 行内）
+                    for j in range(i + 1, min(i + 3, len(lines))):
+                        next_line = lines[j]
+                        if "密码" in next_line or "pwd" in next_line.lower() or "password" in next_line.lower():
+                            # 提取冒号或分割符后面的密码内容
+                            pass_parts = re.split(r'：|:|\s+', next_line)
+                            if len(pass_parts) > 1:
+                                # 过滤掉标签名，拿到纯密码
+                                password = next_line.replace(pass_parts[0], "").timezone = "".join(re.split(r'^[^a-zA-Z0-9]+', next_line.split(pass_parts[0])[-1])).strip()
+                                # 如果过滤后太杂，直接取最后一部分
+                                if not password:
+                                    password = pass_parts[-1].strip()
+                            break
+                    
+                    # 3. 如果成功配对，生成符合你频道视觉效果的格式
+                    if username and password:
+                        res = (f"📍 地区：{escape_markdown('共享账号')}\n"
+                               f"👤 账号：\n`{escape_markdown(username)}`\n"
+                               f"🔑 密码：`{escape_markdown(password)}`")
+                        if res not in account_data:
+                            account_data.append(res)
+                            
         return account_data
-
+        
     except Exception as e:
-        print(f"抓取过程崩溃: {e}")
-        # 失败时保存截图并发送给 TG 进行远程调试
-        screenshot_path = "error_debug.png"
-        driver.save_screenshot(screenshot_path)
-        send_error_to_tg(f"抓取崩溃日志: {e}", screenshot_path)
-        driver.quit()
+        print(f"抓取异常: {str(e)}")
         return None
 
-def send_error_to_tg(msg, photo_path=None):
-    """当抓取失败时，发送截图到 Telegram 方便排查"""
+def send_to_telegram_fixed(content_list):
+    """发送带格式的消息（带置顶图片和文本加粗）"""
     token = os.environ.get('BOT_TOKEN')
     chat_id = "-1003965538399"
-    if not token: return
     
-    url = f"https://api.telegram.org/bot{token}/sendPhoto"
-    with open(photo_path, 'rb') as photo:
-        requests.post(url, data={'chat_id': chat_id, 'caption': f"❌ 脚本运行失败报告\n{msg}"}, files={'photo': photo})
+    if not content_list:
+        print("没有读取到有效ID账号，停止推送。")
+        return
 
-def send_to_telegram(content_list):
-    token = os.environ.get('BOT_TOKEN')
-    chat_id = "-1003965538399"
-    if not content_list: return
+    # 打印出来在日志里让你看一眼抓到的结果
+    print(f"成功抓取到 {len(content_list)} 个账号，准备推送...")
 
-    # 1. 组装消息
-    body = "\n\n──────────────\n\n".join(content_list)
+    img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
+    
+    header = f"🚀 *{escape_markdown('最新 Apple ID 共享更新【4】')}*"
+    body = "\n\n" + "\n\n──────────────\n\n".join(content_list)
+    
     tz_bj = timezone(timedelta(hours=8))
     bj_time = datetime.now(tz_bj).strftime('%Y-%m-%d %H:%M:%S')
+    time_str = f"🕒 更新时间：{escape_markdown(bj_time)}"
     
-    notice = (
-        f"🕒 更新时间：{escape_markdown(bj_time)}\n"
-        f"⚠️ *警告：严禁在设置/iCloud中登录！*\n\n"
-        f"*共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待15分钟更新，请谅解*\n\n"
-        f"❤️ *欢迎关注我们交流群：*@{escape_markdown('bh888')}\n"
-        f"          *客    服：*@{escape_markdown('zzyyy')}"
+    warning_str = f"⚠️ *{escape_markdown('警告：严禁在设置/iCloud中登录！')}*"
+    
+    notice_val = "共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待两个小时更新，请谅解"
+    notice_str = f"*{escape_markdown(notice_val)}*"
+    
+    follow_str = f"❤️ *{escape_markdown('欢迎关注我们频道：')}*@yinlianID"
+    service_str = f"            *{escape_markdown('客    服：')}*@zzyyy"
+    
+    caption = (
+        f"{header}\n{body}\n\n"
+        f"{time_str}\n"
+        f"{warning_str}\n\n"
+        f"{notice_str}\n\n"
+        f"{follow_str}\n"
+        f"{service_str}"
     )
     
-    header = "🚀 *最新 Apple ID 共享更新【4】*"
-    img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
-    full_caption = f"{header}\n\n{body}\n\n{notice}"
+    if len(caption) > 1024:
+        if len(content_list) > 2:
+            body = "\n\n" + "\n\n──────────────\n\n".join(content_list[:2])
+            caption = f"{header}\n{body}\n\n{time_str}\n{warning_str}\n\n{notice_str}\n\n{follow_str}\n{service_str}"
 
-    # 2. 发送逻辑：优先图片模式，超长则切换文字模式
-    if len(full_caption) < 1020:
-        url = f"https://api.telegram.org/bot{token}/sendPhoto"
-        payload = {"chat_id": chat_id, "photo": img_url, "caption": full_caption, "parse_mode": "MarkdownV2"}
-    else:
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        payload = {"chat_id": chat_id, "text": f"[​]({img_url}){full_caption}", "parse_mode": "MarkdownV2"}
+    media_group = [
+        {
+            'type': 'photo',
+            'media': img_url,
+            'caption': caption,
+            'parse_mode': 'MarkdownV2'
+        }
+    ]
+
+    url = f"https://api.telegram.org/bot{token}/sendMediaGroup"
+    payload = {
+        "chat_id": chat_id,
+        "media": json.dumps(media_group)
+    }
     
-    requests.post(url, json=payload)
+    res = requests.post(url, data=payload)
+    if res.status_code == 200:
+        print("推送成功！")
+    else:
+        print(f"推送失败: {res.text}")
 
 if __name__ == "__main__":
     data = get_apple_ids()
-    send_to_telegram(data)
+    send_to_telegram_fixed(data)
