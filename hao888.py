@@ -163,9 +163,9 @@ def send_to_telegram_fixed(content_list):
     chat_id = "-1003965538399"
     if not token: return
 
-    # 💡 核心对齐升级：如果未获取到有效数据，通知频道不要发截图，保持整洁
+    # 如果未获取到有效数据，发送空号通知
     if not content_list:
-        print("⚠️ [通道 4] 最终未捕获到任何有效数据，发送空号平安通知...")
+        print("⚠️ [通道 4] 最终未捕获到任何有效数据，发送空号提示...")
         header = "🚀 *最新 Apple ID 共享更新提示*"
         status_str = "📍 状态：🔴 *当前暂无可用的活号*"
         body = f"📋 *通知提醒：*\n经系统实时动态监测，当前 *【通道 4】* 目标网站线上的所有共享 ID 已经全部处于锁定维护或异常状态，本次轮询未获取到有效活号。"
@@ -185,10 +185,12 @@ def send_to_telegram_fixed(content_list):
         requests.post(url, json={"chat_id": chat_id, "text": full_text, "parse_mode": "MarkdownV2"})
         return
 
-    print(f"成功获得 {len(content_list)} 个有效账号，正在组织高级排版向 TG 推送...")
+    print(f"成功获得 {len(content_list)} 个有效账号，正在组织满血无限制排版向 TG 推送...")
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     
     header = f"🚀 *{escape_markdown('最新 Apple ID 共享更新【4】')}*"
+    
+    # 💡 【完美升级】直接无缝拼接列表里的所有账号，有多少发多少，绝不腰斩！
     body = "\n\n" + "\n\n──────────────\n\n".join(content_list)
     
     tz_bj = timezone(timedelta(hours=8))
@@ -203,18 +205,14 @@ def send_to_telegram_fixed(content_list):
     service_str = f"            *{escape_markdown('客    服：')}*@zzyyy"
     
     caption = f"{header}\n{body}\n\n{time_str}\n{warning_str}\n\n{notice_str}\n\n{follow_str}\n{service_str}"
-    
-    # 严格限高保护，防止多账号字符爆表
-    if len(caption) > 1024 and len(content_list) > 2:
-        body = "\n\n" + "\n\n──────────────\n\n".join(content_list[:2])
-        caption = f"{header}\n{body}\n\n{time_str}\n{warning_str}\n\n{notice_str}\n\n{follow_str}\n{service_str}"
 
+    # 💡 彻底拔掉过时的 len(caption) > 1024 强行截断切片，让 MediaGroup 自由伸展长文本！
     media_group = [{'type': 'photo', 'media': img_url, 'caption': caption, 'parse_mode': 'MarkdownV2'}]
     url = f"https://api.telegram.org/bot{token}/sendMediaGroup"
     
     res = requests.post(url, data={"chat_id": chat_id, "media": json.dumps(media_group)})
     if res.status_code == 200:
-        print("🎉 物理拦截成功，Telegram 频道大图排版推送成功！")
+        print("🎉 [通道 4] 满血全量收割大贴发布成功，所有号已整齐就位！")
     else:
         print(f"推送失败，TG服务器返回: {res.text}")
 
