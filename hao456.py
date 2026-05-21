@@ -10,7 +10,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 
 def escape_markdown(text):
     """转义 Telegram MarkdownV2 特殊字符"""
@@ -19,37 +18,47 @@ def escape_markdown(text):
 
 def get_apple_ids():
     chrome_options = Options()
-    chrome_options.add_argument('--headless')
+    
+    # 💡 核心自愈补丁：直接锁定系统原生 Chrome 路径，彻底抛弃饱含 Bug 的 DriverManager
+    chrome_options.binary_location = "/usr/bin/google-chrome"
+    chrome_options.add_argument('--headless=new')             # 使用推荐的全新无头模式
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--disable-gpu')               # 禁用 GPU 防止 Linux 容器内卡死
+    
+    # 💡 反爬虫高级伪装参数：彻底抹除自动化痕迹，防止被 CF 盾拦截
+    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
+    chrome_options.add_argument('--lang=zh-CN,zh;q=0.9')
+    
     # 模拟真实移动端 User-Agent，降低被封概率
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1')
 
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-    
     try:
-        print("开始访问页面...")
+        print("🚀 [通道 2] 正在直接调动系统原生 Chrome 驱动开跑...")
+        driver = webdriver.Chrome(options=chrome_options)
+        
+        print("[通道 2] 开始访问页面...")
         driver.get("https://xdd.net.tr/share/wRjpcyhumY")
         wait = WebDriverWait(driver, 30)
         
         # --- 1. 强力密码解锁逻辑 ---
         try:
-            print("正在寻找密码输入框...")
-            # 扩大搜索范围，寻找页面上任何 input
+            print("[通道 2] 正在寻找密码输入框...")
             pwd_input = wait.until(EC.presence_of_element_located((By.TAG_NAME, "input")))
             pwd_input.clear()
             pwd_input.send_keys("7778")
             
-            # 寻找提交按钮
             submit_btn = driver.find_element(By.CSS_SELECTOR, "button, .btn-primary, input[type='submit']")
             driver.execute_script("arguments[0].click();", submit_btn)
-            print("密码已提交，等待页面跳转...")
-            time.sleep(12) # 增加等待时长
+            print("[通道 2] 密码已提交，等待页面跳转...")
+            time.sleep(12) 
         except Exception as e:
-            print(f"密码环节处理异常: {e}")
+            print(f"[通道 2] 密码环节处理异常或已被跳过: {e}")
 
         # --- 2. 账号解析与过滤逻辑 ---
-        print("正在解析账号数据...")
+        print("[通道 2] 正在解析账号数据...")
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "copy-btn")))
         
         user_btns = driver.find_elements(By.CLASS_NAME, "copy-btn")
@@ -60,7 +69,6 @@ def get_apple_ids():
             username = user_btns[i].get_attribute("data-clipboard-text") or user_btns[i].text.strip()
             password = pass_btns[i].get_attribute("data-clipboard-text") or pass_btns[i].text.strip()
             
-            # 核心过滤：剔除包含网址的无效项
             if "http" in username.lower() or "/" in username:
                 continue
                 
@@ -73,30 +81,40 @@ def get_apple_ids():
         return account_data
 
     except Exception as e:
-        print(f"抓取过程崩溃: {e}")
-        # 失败时保存截图并发送给 TG 进行远程调试
+        print(f"❌ [通道 2] 抓取过程崩溃: {e}")
         screenshot_path = "error_debug.png"
-        driver.save_screenshot(screenshot_path)
-        send_error_to_tg(f"抓取崩溃日志: {e}", screenshot_path)
-        driver.quit()
+        try:
+            driver.save_screenshot(screenshot_path)
+            send_error_to_tg(f"通道 2 抓取崩溃日志: {e}", screenshot_path)
+        except:
+            pass
+        try:
+            driver.quit()
+        except:
+            pass
         return None
 
 def send_error_to_tg(msg, photo_path=None):
     """当抓取失败时，发送截图到 Telegram 方便排查"""
     token = os.environ.get('BOT_TOKEN')
     chat_id = "-1003965538399"
-    if not token: return
+    if not token or not photo_path: return
     
     url = f"https://api.telegram.org/bot{token}/sendPhoto"
-    with open(photo_path, 'rb') as photo:
-        requests.post(url, data={'chat_id': chat_id, 'caption': f"❌ 脚本运行失败报告\n{msg}"}, files={'photo': photo})
+    try:
+        with open(photo_path, 'rb') as photo:
+            requests.post(url, data={'chat_id': chat_id, 'caption': f"❌ 脚本运行失败报告\n{msg}"}, files={'photo': photo})
+    except:
+        pass
 
 def send_to_telegram(content_list):
     token = os.environ.get('BOT_TOKEN')
     chat_id = "-1003965538399"
-    if not content_list: return
+    if not content_list: 
+        print("⚠️ [通道 2] 未获取到有效数据，或当前网站无更新，取消本次 TG 推送。")
+        return
 
-    # 1. 组装消息
+    print(f"🎉 [通道 2] 成功抓取到 {len(content_list)} 组账号，正在组织排版向 TG 推送...")
     body = "\n\n──────────────\n\n".join(content_list)
     tz_bj = timezone(timedelta(hours=8))
     bj_time = datetime.now(tz_bj).strftime('%Y-%m-%d %H:%M:%S')
@@ -113,7 +131,6 @@ def send_to_telegram(content_list):
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     full_caption = f"{header}\n\n{body}\n\n{notice}"
 
-    # 2. 发送逻辑：优先图片模式，超长则切换文字模式
     if len(full_caption) < 1020:
         url = f"https://api.telegram.org/bot{token}/sendPhoto"
         payload = {"chat_id": chat_id, "photo": img_url, "caption": full_caption, "parse_mode": "MarkdownV2"}
