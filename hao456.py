@@ -33,7 +33,7 @@ def get_apple_ids():
     chrome_options.add_argument('--lang=zh-CN,zh;q=0.9')
     
     # 模拟真实移动端 User-Agent，降低被封概率
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1')
+    chrome_options.add_argument('--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version=17.0 Mobile/15E148 Safari/604.1')
 
     try:
         print("🚀 [通道 2] 正在直接调动系统原生 Chrome 驱动开跑...")
@@ -54,7 +54,7 @@ def get_apple_ids():
             driver.execute_script("arguments[0].click();", submit_btn)
             print("[通道 2] 密码已提交，启动多卡片数量动态嗅探...")
             
-            # 💡 核心改良：放弃盲目死等 12 秒，在 15 秒内高频检测，直到卡片数量 >= 2 判定全量渲染齐全
+            # 💡 核心改良：在 15 秒内高频检测，直到卡片数量 >= 2 判定全量渲染齐全
             for check_loop in range(15):
                 user_btns = driver.find_elements(By.CLASS_NAME, "copy-btn")
                 if len(user_btns) >= 2:
@@ -62,7 +62,7 @@ def get_apple_ids():
                     break
                 time.sleep(1)
                 
-            time.sleep(2) # 额外多留 2 秒作为平稳缓冲，确保对应的密码按钮渲染完毕
+            time.sleep(2) # 额外多留 2 秒作为平稳缓冲
         except Exception as e:
             print(f"[通道 2] 密码环节或数量监测处理异常: {e}")
 
@@ -122,31 +122,59 @@ def send_to_telegram(content_list):
         print("⚠️ [通道 2] 未获取到有效数据，或当前网站无更新，取消本次 TG 推送。")
         return
 
-    print(f"🎉 [通道 2] 成功抓取到 {len(content_list)} 组账号，正在组织排版向 TG 推送...")
-    body = "\n\n──────────────\n\n".join(content_list)
+    print(f"🎉 [通道 2] 成功抓取到 {len(content_list)} 组账号，正在组织完美多号排版向 TG 推送...")
+    
+    # 1. 标题加粗
+    header = "🚀 *最新 Apple ID 共享更新【2】*"
+    
+    # 2. 账号主体（完美用分割线拼接所有人）
+    body = "\n\n" + "\n\n──────────────\n\n".join(content_list)
+    
+    # 3. 时间与警告
     tz_bj = timezone(timedelta(hours=8))
     bj_time = datetime.now(tz_bj).strftime('%Y-%m-%d %H:%M:%S')
+    time_str = f"🕒 更新时间：{escape_markdown(bj_time)}"
+    warning_str = f"⚠️ *{escape_markdown('警告：严禁在设置/iCloud中登录！')}*"
     
-    notice = (
-        f"🕒 更新时间：{escape_markdown(bj_time)}\n"
-        f"⚠️ *警告：严禁在设置/iCloud中登录！*\n\n"
-        f"*共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待15分钟更新，请谅解*\n\n"
-        f"❤️ *欢迎关注我们交流群：*@{escape_markdown('bh888')}\n"
-        f"          *客    服：*@{escape_markdown('zzyyy')}"
+    # 4. 公告与客服
+    notice_val = "共享🆔不能保持永久性，请第一时间下载，如若发生ID不可用情况，请持续关注频道等待15分钟更新，请谅解"
+    notice_str = f"*{escape_markdown(notice_val)}*"
+    follow_str = f"❤️ *{escape_markdown('欢迎关注我们交流群：')}*@bh888"
+    service_str = f"            *{escape_markdown('客    服：')}*@zzyyy"
+    
+    # 组合最终完美 Caption
+    full_caption = (
+        f"{header}\n{body}\n\n"
+        f"{time_str}\n"
+        f"{warning_str}\n\n"
+        f"{notice_str}\n\n"
+        f"{follow_str}\n"
+        f"{service_str}"
     )
     
-    header = "🚀 *最新 Apple ID 共享更新【2】*"
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
-    full_caption = f"{header}\n\n{body}\n\n{notice}"
-
-    if len(full_caption) < 1020:
-        url = f"https://api.telegram.org/bot{token}/sendPhoto"
-        payload = {"chat_id": chat_id, "photo": img_url, "caption": full_caption, "parse_mode": "MarkdownV2"}
-    else:
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        payload = {"chat_id": chat_id, "text": f"[​]({img_url}){full_caption}", "parse_mode": "MarkdownV2"}
     
-    requests.post(url, json=payload)
+    # 💡 核心修正：采用和通道1相同的 MediaGroup 发送架构，彻底杜绝隐藏文本吞行的语法冲突！
+    media_group = [
+        {
+            'type': 'photo',
+            'media': img_url,
+            'caption': full_caption,
+            'parse_mode': 'MarkdownV2'
+        }
+    ]
+
+    url = f"https://api.telegram.org/bot{token}/sendMediaGroup"
+    payload = {
+        "chat_id": chat_id,
+        "media": json.dumps(media_group)
+    }
+    
+    res = requests.post(url, data=payload)
+    if res.status_code == 200:
+        print("🎉 [通道 2] 所有号已整整齐齐发送成功，长文本排版完美放行！")
+    else:
+        print(f"❌ [通道 2] 推送失败: {res.text}")
 
 if __name__ == "__main__":
     data = get_apple_ids()
