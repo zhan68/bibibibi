@@ -77,7 +77,7 @@ def send_to_telegram_fixed(content_list):
     # --- 核心修改：严格遵循 MarkdownV2 加粗语法 ---
     
     # 1. 标题加粗
-    header = f"🚀 *{escape_markdown('最新 Apple ID 共享更新')}*"
+    header = f"🚀 *{escape_markdown('最新 Apple ID 共享更新【1】')}*"
     
     # 2. 账号主体
     body = "\n\n" + "\n\n──────────────\n\n".join(content_list)
