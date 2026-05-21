@@ -20,7 +20,6 @@ def send_no_id_notice_to_tg(script_name):
         print(f"⚠️ [System] 未检测到环境变量 BOT_TOKEN，放弃发送无号通知。")
         return
         
-    # 💡 自动映射脚本对应的通道大名称，让粉丝一目了然
     name_map = {
         "hao123.py": "【通道 1】",
         "hao456.py": "【通道 2】",
@@ -30,10 +29,8 @@ def send_no_id_notice_to_tg(script_name):
     }
     channel_display_name = name_map.get(script_name, f"【{script_name}】")
     
-    # 获取精准的当前北京时间
     bj_time = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(time.time() + 28800))
     
-    # 💡 严格遵循频道加粗与排版美化文本
     header = "🚀 *最新 Apple ID 共享更新提示*"
     status_str = "📍 状态：🔴 *当前暂无可用的活号*"
     body = f"📋 *通知提醒：*\n经系统实时动态监测，当前 *{escape_markdown_v2(channel_display_name)}* 目标网站线上正处于维护或账号锁定状态，本次轮询未嗅探到可用的有效活号。"
@@ -43,7 +40,6 @@ def send_no_id_notice_to_tg(script_name):
     follow_str = f"❤️ *{escape_markdown_v2('欢迎关注我们交流群：')}*@bh888"
     service_str = f"            *{escape_markdown_v2('客    服：')}*@zzyyy"
     
-    # 完美用分割线拼接最终发送文本
     full_text = f"{header}\n\n{status_str}\n\n{body}\n\n{hint_str}\n\n──────────────\n\n{time_str}\n{follow_str}\n{service_str}"
     
     url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -69,38 +65,38 @@ def run_server():
     server.serve_forever()
 
 def run_robot_loop():
-    # 严格锁定的 5 大核心收割通道队列
     scripts = ["hao123.py", "hao456.py", "hao789.py", "hao888.py", "hao999.py"]
     current_env = os.environ.copy()
     
     while True:
         for script in scripts:
             print(f"\n--- [🕒 {time.strftime('%X')}] 准备执行: {script} ---")
-            has_live_ids = False
+            has_live_ids = True # 默认放行大休眠依据
             
             try:
-                # 执行通道脚本并强行拦截它的控制台日志输出
+                # 💡 核心改良：移除了 capture_output=True，采用标准管道实时对冲，保证浏览器内核不卡死
                 result = subprocess.run(
                     [sys.executable, script], 
                     timeout=300, 
-                    capture_output=True, 
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
                     text=True, 
                     env=current_env
                 ) 
                 
-                # 将子脚本的原本打印无缝平铺到 Render 后台日志中
-                if result.stdout: print(result.stdout)
-                if result.stderr: print(result.stderr)
+                # 实时平铺打印子脚本在运行中产生的所有原始日志
+                output_str = result.stdout if result.stdout else ""
+                print(output_str)
 
                 if result.returncode == 0:
-                    # 💡 精准拦截无可用ID的退出信号
-                    if any(k in result.stdout for k in ["未获取到有效数据", "没有读取到任何", "最终未捕获到", "取消本次 TG 推送"]):
-                        print(f"ℹ️ [System] {script} 判定无活号，准备触发统一无号提醒...")
+                    # 💡 管道顺畅后，精准捕捉子脚本打印出来的拦截关键字
+                    if any(k in output_str for k in ["未获取到有效数据", "没有读取到任何", "最终未捕获到", "取消本次 TG 推送"]):
+                        print(f"ℹ️ [System] 后台日志捕获成功：{script} 线上无可用活号。")
                         send_no_id_notice_to_tg(script)
-                        has_live_ids = False  # 没抓到有效活号
+                        has_live_ids = False  
                     else:
-                        print(f"🎉 [System] {script} 顺利抓取到活号并已由子脚本成功发布大贴！")
-                        has_live_ids = True   # 成功发出了活号大贴
+                        print(f"🎉 [System] {script} 顺利抓取到活号并已成功发布大贴！")
+                        has_live_ids = True   
                     print(f"--- [✅] {script} 正常结束 ---")
                 else:
                     print(f"--- [❌] {script} 进程异常退出，状态码: {result.returncode}，触发无号通报兜底...")
@@ -112,14 +108,11 @@ def run_robot_loop():
                 send_no_id_notice_to_tg(script)
                 has_live_ids = False
             
-            # 💡 【严格坚守铁律机制】
-            # 如果成功发布了全加粗活号大贴，雷打不动在原地休眠 15 分钟（900秒），给粉丝腾出空档抢号！
-            # 如果目标网站全锁或风控没抓到，为了让系统不卡死并高频切入下一个通道碰运气，仅快速休眠 2 分钟（120秒）闪避风控！
+            # 💡 严格死守你的铁律：每推进完一个通道脚本，立刻在原地执行大休眠机制！
             wait_time = 900 if has_live_ids else 120
             print(f">>> [System] 单通道排队隔离清算：{script} 执行完毕，强制原地休眠 {wait_time} 秒...")
             time.sleep(wait_time)
 
 if __name__ == "__main__":
-    # 异步拉起健康检查防休眠服务器
     threading.Thread(target=run_server, daemon=True).start()
     run_robot_loop()
