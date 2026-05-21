@@ -52,15 +52,22 @@ def get_apple_ids():
             
             submit_btn = driver.find_element(By.CSS_SELECTOR, "button, .btn-primary, input[type='submit']")
             driver.execute_script("arguments[0].click();", submit_btn)
-            print("[通道 2] 密码已提交，等待页面跳转...")
-            time.sleep(12) 
+            print("[通道 2] 密码已提交，启动多卡片数量动态嗅探...")
+            
+            # 💡 核心改良：放弃盲目死等 12 秒，在 15 秒内高频检测，直到卡片数量 >= 2 判定全量渲染齐全
+            for check_loop in range(15):
+                user_btns = driver.find_elements(By.CLASS_NAME, "copy-btn")
+                if len(user_btns) >= 2:
+                    print(f"🎉 [通道 2] 动态监测成功！检测到全量 {len(user_btns)} 组卡片已加载就位，提前唤醒抓取！")
+                    break
+                time.sleep(1)
+                
+            time.sleep(2) # 额外多留 2 秒作为平稳缓冲，确保对应的密码按钮渲染完毕
         except Exception as e:
-            print(f"[通道 2] 密码环节处理异常或已被跳过: {e}")
+            print(f"[通道 2] 密码环节或数量监测处理异常: {e}")
 
         # --- 2. 账号解析与过滤逻辑 ---
-        print("[通道 2] 正在解析账号数据...")
-        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "copy-btn")))
-        
+        print("[通道 2] 正在解析全量账号数据...")
         user_btns = driver.find_elements(By.CLASS_NAME, "copy-btn")
         pass_btns = driver.find_elements(By.CLASS_NAME, "copy-pass-btn")
         
@@ -75,7 +82,8 @@ def get_apple_ids():
             if username and password:
                 res = (f"👤 账号：`{escape_markdown(username)}`\n"
                        f"🔑 密码：`{escape_markdown(password)}`")
-                account_data.append(res)
+                if res not in account_data:
+                    account_data.append(res)
         
         driver.quit()
         return account_data
