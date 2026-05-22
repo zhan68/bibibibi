@@ -27,7 +27,11 @@ def get_apple_ids():
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
-    chrome_options.add_user_agent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
+    
+    # 🎯【完美修复】将错误的 add_user_agent 修正为标准的 add_argument 参数注入！
+    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
+    
+    # 强行给 headless 浏览器注入字体，防止乱码导致 JS 解密挂起
     chrome_options.add_argument('--lang=zh-CN,zh;q=0.9')
     chrome_options.add_argument('--blink-settings=imagesEnabled=false') 
 
@@ -66,7 +70,6 @@ def get_apple_ids():
                     cards = driver.find_elements(By.XPATH, "//*[contains(text(), '复制')]/ancestor::div[position()<=3]")
                 
                 for card in cards:
-                    # 💥 降维打击：直接提取卡片的 HTML 源代码，防止纯文本被 Selenium 隐藏或过滤！
                     card_html = card.get_attribute("innerHTML")
                     card_text = card.text
                     if not card_html:
@@ -82,8 +85,8 @@ def get_apple_ids():
                             continue
                         username = email_match.group(0).strip()
                         
-                        # 💡 2. 【高精度精准修复】直接从网页底层 HTML 中强行挖出国家字段
-                        region = "美国" # 默认美区兜底
+                        # 2. 国家地区自动动态分析
+                        region = "美国" 
                         if "中国" in card_html or "大陆" in card_html:
                             region = "中国大陆"
                         elif "香港" in card_html:
@@ -114,7 +117,6 @@ def get_apple_ids():
                                         break
                                         
                         if username and password:
-                            # 完美组装国家地区数据
                             res = (f"📍 地区：{escape_markdown(region)}\n"
                                    f"👤 账号：`{escape_markdown(username)}`\n"
                                    f"🔑 密码：`{escape_markdown(password)}`")
