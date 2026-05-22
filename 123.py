@@ -28,9 +28,8 @@ def send_no_id_notice_to_tg(script_name):
         "hao999.py": "【通道 5】",
         "hao666.py": "【通道 6】"
     }
-    }
-    channel_display_name = name_map.get(script_name, f"【{script_name}】")
     
+    channel_display_name = name_map.get(script_name, f"【{script_name}】")
     bj_time = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(time.time() + 28800))
     
     header = "🚀 *最新 Apple ID 共享更新提示*"
@@ -76,7 +75,7 @@ def run_robot_loop():
             has_live_ids = True # 默认放行大休眠依据
             
             try:
-                # 💡 核心改良：移除了 capture_output=True，采用标准管道实时对冲，保证浏览器内核不卡死
+                # 实时管道对冲，防止容器积压卡死
                 result = subprocess.run(
                     [sys.executable, script], 
                     timeout=300, 
@@ -86,13 +85,12 @@ def run_robot_loop():
                     env=current_env
                 ) 
                 
-                # 实时平铺打印子脚本在运行中产生的所有原始日志
                 output_str = result.stdout if result.stdout else ""
                 print(output_str)
 
                 if result.returncode == 0:
-                    # 💡 管道顺畅后，精准捕捉子脚本打印出来的拦截关键字
-                    if any(k in output_str for k in ["未获取到有效数据", "没有读取到任何", "最终未捕获到", "取消本次 TG 推送"]):
+                    # 精准捕捉各通道打印出来的未捕获活号关键字
+                    if any(k in output_str for k in ["未获取到有效数据", "没有读取到任何", "最终未捕获到", "取消本次 TG 推送", "最终提纯出的列表为空"]):
                         print(f"ℹ️ [System] 后台日志捕获成功：{script} 线上无可用活号。")
                         send_no_id_notice_to_tg(script)
                         has_live_ids = False  
@@ -110,7 +108,7 @@ def run_robot_loop():
                 send_no_id_notice_to_tg(script)
                 has_live_ids = False
             
-            # 💡 严格死守你的铁律：每推进完一个通道脚本，立刻在原地执行大休眠机制！
+            # 严格按照铁律休眠：发大贴睡15分钟，无号快闪避2分钟
             wait_time = 900 if has_live_ids else 120
             print(f">>> [System] 单通道排队隔离清算：{script} 执行完毕，强制原地休眠 {wait_time} 秒...")
             time.sleep(wait_time)
