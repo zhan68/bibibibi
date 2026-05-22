@@ -5,7 +5,10 @@ import re
 import json
 from datetime import datetime, timedelta, timezone
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+# 🎯【完美修复】强行补上遗漏的核心 By 定位组件，碾碎 name 'By' is not defined 报错！
+from selenium.webdriver.common.by import By
 
 def escape_markdown(text):
     """转义 Telegram MarkdownV2 特殊字符"""
@@ -25,6 +28,8 @@ def get_apple_ids():
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
+    
+    # 注入标准 User-Agent 伪装
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
     chrome_options.add_argument('--lang=zh-CN,zh;q=0.9')
     chrome_options.add_argument('--blink-settings=imagesEnabled=false') 
@@ -44,11 +49,9 @@ def get_apple_ids():
         except Exception:
             pass
             
-        # 静默等待 8 秒，让网页底部的 CryptoJS 彻底完成解密并平铺好全局变量 result
         time.sleep(8)
         account_data = []
         
-        # 探测全页面所有的框架上下文（穿透内置 iframe 容器）
         all_frames = ["main_page"]
         iframes = driver.find_elements(By.TAG_NAME, "iframe")
         for idx, frame in enumerate(iframes):
@@ -61,7 +64,7 @@ def get_apple_ids():
                 if current_frame != "main_page":
                     driver.switch_to.frame(current_frame)
                 
-                # 💥 降维大招：直接执行 JS 代码，把网页内存解密完的 result 数组一网打尽直接端出来！
+                # 💥 内存拦截大招：提取解密后的原生变量数组
                 raw_result = driver.execute_script("return window.result || result;")
                 
                 if raw_result and isinstance(raw_result, list):
@@ -69,11 +72,9 @@ def get_apple_ids():
                     
                     for item in raw_result:
                         try:
-                            # 严格审查状态：必须是状态正常（status == 1）的号才放行
                             if str(item.get('status')) == '1' or '正常' in str(item.get('msg', '')):
                                 username = item.get('username', '').strip()
                                 password = item.get('password', '').strip()
-                                # 🎯 精准拦截：一字不差地提取原生 country 属性（中国大陆、美国、越南）！
                                 country = item.get('country', '美国').strip() 
                                 
                                 if not country or country == "None":
@@ -90,7 +91,7 @@ def get_apple_ids():
                         except:
                             continue
                 
-                # 🛠️ 兜底方案：如果内存变量被清空了，执行高精度的 DOM 抽取
+                # 🛠️ 智能标签探测兜底逻辑
                 if not account_data:
                     cards = driver.find_elements(By.CSS_SELECTOR, ".card, .panel, [class*='card']")
                     for card in cards:
@@ -99,7 +100,6 @@ def get_apple_ids():
                             email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', card_text)
                             if email_match:
                                 username = email_match.group(0).strip()
-                                # 地区识别兜底：只在当前卡片的局部纯文本里搜，绝不扩大到全文！
                                 region = "中国大陆" if "中国" in card_text or "大陆" in card_text else "美国"
                                 
                                 password = ""
