@@ -3,7 +3,7 @@ import requests
 import time
 import re
 import json
-import html  # 💡 引入反转义金牌库
+import html
 from datetime import datetime, timedelta, timezone
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -19,12 +19,12 @@ def escape_markdown(text):
 def get_apple_ids():
     chrome_options = Options()
     
-    # 💡 核心自愈补丁：锁定 Docker 容器内部官方 Chrome 路径，彻底丢弃 DriverManager
+    # 💡 核心自愈补丁：锁定 Docker 容器内部官方 Chrome 路径
     chrome_options.binary_location = "/usr/bin/google-chrome"
-    chrome_options.add_argument('--headless=new')             # 无头模式
+    chrome_options.add_argument('--headless=new')             
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
-    chrome_options.add_argument('--disable-gpu')               # 禁用 GPU 防止 Linux 容器内卡死
+    chrome_options.add_argument('--disable-gpu')               
     chrome_options.add_argument('--lang=zh-CN,zh;q=0.9')
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
 
@@ -36,18 +36,31 @@ def get_apple_ids():
         print(f"[通道 6] 开始访问页面: {target_url}")
         driver.get(target_url)
         
-        # 💡 等待加载：直到含有 waves-effect 类的按钮渲染就位
+        # 💡 第一阶段：确保基础框架加载
         wait = WebDriverWait(driver, 25)
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "waves-effect")))
         
-        # 留出 4 秒给异步数据平铺完毕
-        time.sleep(4)
+        # 💡 第二阶段【核心突破】：高级动态轮询，必须等到所有卡片的内部属性全部吐出才开工
+        print("[通道 6] 正在等待异步数据完全渲染平铺...")
+        for _ in range(15):
+            cards = driver.find_elements(By.CSS_SELECTOR, "#apple > div[class*='col'], #apple > div")
+            ready_count = 0
+            for card in cards:
+                try:
+                    btns = card.find_elements(By.CLASS_NAME, "waves-effect")
+                    if len(btns) >= 2 and btns[0].get_attribute("data-copy") and btns[1].get_attribute("data-copy"):
+                        ready_count += 1
+                except:
+                    pass
+            if ready_count >= 3: # 只要有3组以上的数据完全填充完毕，就立刻跳出
+                print(f"🎉 动态监测成功！全量 {ready_count} 组隐藏加密数据已完整解密就位！")
+                break
+            time.sleep(1)
+            
+        time.sleep(2)
         
-        # 💡 精准定位包含了单个卡片所有的 col 容器大方块
+        # 开始全量提纯
         cards = driver.find_elements(By.CSS_SELECTOR, "#apple > div[class*='col'], #apple > div")
-        
-        print(f"[通道 6] 成功锁定 {len(cards)} 个独立账号卡片方块，开始智能化多国提取...")
-        
         account_data = []
         
         for idx, card in enumerate(cards):
@@ -56,8 +69,8 @@ def get_apple_ids():
                 if not card_text or "@" not in card_text:
                     continue 
 
-                # 🎯 1. 地区提取：全自动提取网页上写着的任意中文字符（无论是美国、越南还是日本）
-                region = "共享账号" 
+                # 1. 地区动态抓取
+                region = "美区账号"
                 try:
                     region_element = card.find_element(By.CSS_SELECTOR, ".float-end")
                     if region_element:
@@ -68,9 +81,8 @@ def get_apple_ids():
                     elif "越南" in card_text: region = "越南"
                     elif "香港" in card_text: region = "中国香港"
 
-                # 2. 账号与密码精准轰炸：锁定内部的 waves-effect 按钮
+                # 2. 账号与密码精准轰炸
                 btns = card.find_elements(By.CLASS_NAME, "waves-effect")
-                
                 if len(btns) >= 2:
                     raw_username = btns[0].get_attribute("data-copy")
                     raw_password = btns[1].get_attribute("data-copy")
@@ -78,19 +90,23 @@ def get_apple_ids():
                     if not raw_username or not raw_password:
                         continue
                         
-                    # 💥 降维打击：利用 html.unescape 强行把 &amp; 还原回真正的 & 符号！
+                    # 强力反转义
                     username = html.unescape(raw_username.strip())
                     password = html.unescape(raw_password.strip())
 
-                    # 3. 数据有效性清算与格式组装
-                    if username and password and "@" in username and "@" not in password:
-                        res = (f"📍 地区：{escape_markdown(region)}\n"
-                               f"👤 账号：`{escape_markdown(username)}`\n"
-                               f"🔑 密码：`{escape_markdown(password)}`")
-                        
-                        if res not in account_data:
-                            account_data.append(res)
-                            print(f"🥇 [通道 6] 提纯成功 -> 地区: {region} | 账号: {username} | 密码: {password}")
+                    # 3. 升级版过滤洗包规则：放宽密码里包含 @ 的限制，只要密码里不带有邮箱后缀即可
+                    if username and password and "@" in username and not any(k in password for k in [".com", ".net", ".org", ".cl"]):
+                        email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', username)
+                        if email_match:
+                            clean_username = email_match.group(0).strip()
+                            
+                            res = (f"📍 地区：{escape_markdown(region)}\n"
+                                   f"👤 账号：`{escape_markdown(clean_username)}`\n"
+                                   f"🔑 密码：`{escape_markdown(password)}`")
+                            
+                            if res not in account_data:
+                                account_data.append(res)
+                                print(f"🥇 [通道 6] 提纯成功 -> 地区: {region} | 账号: {clean_username} | 密码: {password}")
             except Exception as card_e:
                 continue
 
