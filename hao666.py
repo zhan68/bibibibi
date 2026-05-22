@@ -35,54 +35,58 @@ def get_apple_ids():
         print(f"[通道 6] 开始访问页面: {target_url}")
         driver.get(target_url)
         
-        # 💡 等待加载：直到账号按钮或卡片渲染就位
+        # 💡 等待加载：直到含有 waves-effect 类的按钮渲染就位
         wait = WebDriverWait(driver, 25)
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "waves-effect")))
         
         # 留出 4 秒给异步数据平铺完毕
         time.sleep(4)
         
-        # 💡 重新校准：精确定位包含了地区和账号密码按钮的 col 卡片容器
-        cards = driver.find_elements(By.CSS_SELECTOR, "#apple > div.col-12, #apple > div[class*='col'], #apple > div")
+        # 💡 定位包含了单个卡片所有的 col 容器大方块
+        cards = driver.find_elements(By.CSS_SELECTOR, "#apple > div[class*='col'], #apple > div")
         
-        print(f"[通道 6] 成功锁定 {len(cards)} 个独立账号卡片方块，启动高精度属性探测...")
+        print(f"[通道 6] 成功锁定 {len(cards)} 个独立账号卡片方块，开始提取...")
         
         account_data = []
         
         for idx, card in enumerate(cards):
             try:
-                # 1. 地区提取：直接抓取方块里包含的“美国”字样
                 card_text = card.text
-                region = "美区账号"
-                if "美国" in card_text: region = "美国"
-                elif "香港" in card_text: region = "中国香港"
-                elif "台湾" in card_text: region = "中国台湾"
+                if not card_text or "@" not in card_text:
+                    continue 
 
-                # 2. 账号与密码按钮提取
-                # 寻找方块内部所有包含 waves-effect 类的属性按钮
+                # 1. 地区提取：直接抓取右侧写死的文本
+                region = "美区账号"
+                try:
+                    region_element = card.find_element(By.CSS_SELECTOR, ".float-end")
+                    if region_element:
+                        raw_region = region_element.text.strip()
+                        if raw_region: region = raw_region
+                except:
+                    if "美国" in card_text: region = "美国"
+                    elif "越南" in card_text: region = "越南"
+                    elif "香港" in card_text: region = "中国香港"
+
+                # 2. 账号与密码精准轰炸：锁定内部的 waves-effect 按钮
                 btns = card.find_elements(By.CLASS_NAME, "waves-effect")
                 
                 if len(btns) >= 2:
-                    # 突破核心：优先提取隐藏在 data-clipboard-text 属性里的加密密文，拿不到再抓按钮文字
-                    username = btns[0].get_attribute("data-clipboard-text") or btns[0].get_attribute("value") or btns[0].text
-                    password = btns[1].get_attribute("data-clipboard-text") or btns[1].get_attribute("value") or btns[1].text
+                    # 💥 破局核心：直接抓取网页真正的属性 data-copy！
+                    username = btns[0].get_attribute("data-copy")
+                    password = btns[1].get_attribute("data-copy")
                     
                     if username: username = username.strip()
                     if password: password = password.strip()
 
-                    # 3. 强力清洗邮箱正则，验证数据有效性
-                    if username and password and "@" in username and "@" not in password and len(password) >= 4:
-                        email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', username)
-                        if email_match:
-                            clean_username = email_match.group(0).strip()
-                            
-                            res = (f"📍 地区：{escape_markdown(region)}\n"
-                                   f"👤 账号：`{escape_markdown(clean_username)}`\n"
-                                   f"🔑 密码：`{escape_markdown(password)}`")
-                            
-                            if res not in account_data:
-                                account_data.append(res)
-                                print(f"🥇 [通道 6] 提纯成功 -> 地区: {region} | 账号: {clean_username} | 密码: {password}")
+                    # 3. 数据有效性清算与格式组装
+                    if username and password and "@" in username and "@" not in password:
+                        res = (f"📍 地区：{escape_markdown(region)}\n"
+                               f"👤 账号：`{escape_markdown(username)}`\n"
+                               f"🔑 密码：`{escape_markdown(password)}`")
+                        
+                        if res not in account_data:
+                            account_data.append(res)
+                            print(f"🥇 [通道 6] 提纯成功 -> 地区: {region} | 账号: {username} | 密码: {password}")
             except Exception as card_e:
                 continue
 
@@ -107,6 +111,7 @@ def send_to_telegram(content_list):
     print(f"🎉 [通道 6] 成功抓取到 {len(content_list)} 组账号，正在向 TG 推送最新大帖...")
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     
+    # 📌 满血对齐广告格式
     header = "🚀 *最新 Apple ID 共享更新【6】*"
     body = "\n\n" + "\n\n──────────────\n\n".join(content_list)
     
