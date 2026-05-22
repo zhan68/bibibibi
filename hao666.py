@@ -35,66 +35,65 @@ def get_apple_ids():
         print(f"[通道 6] 开始访问页面: {target_url}")
         driver.get(target_url)
         
-        # 💡 等待加载：直到转圈的 loading 元素消失，且账号按钮加载就位
+        # 💡 等待加载：直到账号按钮或卡片渲染就位
         wait = WebDriverWait(driver, 25)
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "waves-effect")))
         
-        # 留出 3 秒给数据渲染完整
-        time.sleep(3)
+        # 留出 4 秒给异步数据平铺完毕
+        time.sleep(4)
         
-        # 💡 【容器级精准穿透】直接锁定 id="apple" 下面的所有独立卡片方块
-        cards = driver.find_elements(By.CSS_SELECTOR, "#apple > div.col-12, #apple > div[class*='col']")
+        # 💡 精准定位包含了地区和账号密码的 col 容器大方块
+        cards = driver.find_elements(By.CSS_SELECTOR, "#apple > div.col-12, #apple > div[class*='col'], #apple > div")
         
-        # 兜底：如果类名变动，直接抓取包含 waves-effect 的父级卡片
-        if not cards:
-            cards = driver.find_elements(By.XPATH, "//*[contains(@class, 'waves-effect')]/ancestor::div[contains(@class, 'card') or position()<=2]")
-
-        print(f"[通道 6] 成功锁定 {len(cards)} 个独立账号卡片方块，开始精准提纯...")
+        print(f"[通道 6] 成功锁定 {len(cards)} 个独立账号卡片方块，启动纯文本高精度挖掘...")
         
         account_data = []
         
         for idx, card in enumerate(cards):
             try:
-                card_text = card.text
+                # 🎯 核心升级：直接榨干这一个大方块里显示出来的所有字
+                card_text = card.text.strip()
                 if not card_text or "@" not in card_text:
-                    continue # 如果方块里没有邮箱，直接跳过
-                
-                # 🎯 A. 精准提取卡片内部写死的地区文本（如：“美国”）
-                region = "美区账号" # 默认兜底
-                try:
-                    # 寻找带 float-end 或者带有地区图标旁边的文本
-                    region_element = card.find_element(By.CSS_SELECTOR, ".float-end, i[class*='fi'] + span, i[class*='fi']")
-                    if region_element:
-                        raw_region = region_element.text.strip()
-                        if raw_region:
-                            region = raw_region
-                except:
-                    # 兜底正则：如果在卡片纯文本里看到了中文，提取出来
-                    if "美国" in card_text: region = "美国"
-                    elif "香港" in card_text: region = "中国香港"
-                    elif "大陆" in card_text or "中国" in card_text: region = "中国大陆"
+                    continue 
 
-                # B. 精准提取卡片内部的账号和密码按钮
-                btns = card.find_elements(By.CLASS_NAME, "waves-effect")
-                if len(btns) >= 2:
-                    # 第一个按钮是账号，优先拿真实复制属性，拿不到拿文本
-                    username = btns[0].get_attribute("data-clipboard-text") or btns[0].text.strip()
-                    # 第二个按钮是密码
-                    password = btns[1].get_attribute("data-clipboard-text") or btns[1].text.strip()
+                print(f"-> [通道 6] 正在粉碎清洗第 {idx+1} 个方块的文本...")
+
+                # 1. 地区提取：如果方块里写了“美国”就直接抓出美国，否则默认美区
+                region = "美区账号"
+                if "美国" in card_text:
+                    region = "美国"
+                elif "香港" in card_text:
+                    region = "中国香港"
+                elif "台湾" in card_text:
+                    region = "中国台湾"
+
+                # 2. 账号提取：利用强大的正则直接抓出方块里的邮箱
+                email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', card_text)
+                if not email_match:
+                    continue
+                username = email_match.group(0).strip()
+
+                # 3. 密码提取：将方块内的文本打碎，精准剔除账号、地区和中文提示，剩下的纯英数即为密码！
+                password = ""
+                # 按空格、换行或特殊符号切片
+                parts = [p.strip() for p in re.split(r'[\s|｜,，;；\t:\n\r]+', card_text) if p.strip()]
+                
+                for part in parts:
+                    # 密码绝对不是邮箱，不能包含中文，长度必须大于等于 4，且排除掉“美国”等文本
+                    if part != username and "@" not in part and len(part) >= 4:
+                        if not re.search(r'[\u4e00-\u9fa5]', part) and part not in ["复制", "账号", "密码", "成功"]:
+                            password = part
+                            break
+
+                # 4. 终审组装发布
+                if username and password:
+                    res = (f"📍 地区：{escape_markdown(region)}\n"
+                           f"👤 账号：`{escape_markdown(username)}`\n"
+                           f"🔑 密码：`{escape_markdown(password)}`")
                     
-                    # 强力清洗邮箱
-                    if "@" in username and len(password) >= 4 and "@" not in password:
-                        email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', username)
-                        if email_match:
-                            clean_username = email_match.group(0).strip()
-                            
-                            res = (f"📍 地区：{escape_markdown(region)}\n"
-                                   f"👤 账号：`{escape_markdown(clean_username)}`\n"
-                                   f"🔑 密码：`{escape_markdown(password)}`")
-                            
-                            if res not in account_data:
-                                account_data.append(res)
-                                print(f"🥇 [通道 6] 卡片 {idx+1} 提取成功 -> 地区: {region} | 账号: {clean_username}")
+                    if res not in account_data:
+                        account_data.append(res)
+                        print(f"🥇 [通道 6] 提纯成功 -> 地区: {region} | 账号: {username} | 密码: {password}")
             except Exception as card_e:
                 continue
 
@@ -113,13 +112,13 @@ def send_to_telegram(content_list):
     if not token: return
     
     if not content_list: 
-        print("⚠️ [通道 6] 未获取到有效数据，取消本次 TG 推送。")
+        print("⚠️ [通道 6] 最终提纯出的列表为空，取消本次 TG 推送。")
         return
 
     print(f"🎉 [通道 6] 成功抓取到 {len(content_list)} 组账号，正在向 TG 推送最新大帖...")
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     
-    # 📌 完美对齐你的官方频道大图排版格式
+    # 📌 满血对齐你频道的广告后缀
     header = "🚀 *最新 Apple ID 共享更新【6】*"
     body = "\n\n" + "\n\n──────────────\n\n".join(content_list)
     
@@ -139,7 +138,7 @@ def send_to_telegram(content_list):
     url = f"https://api.telegram.org/bot{token}/sendMediaGroup"
     
     res = requests.post(url, json={"chat_id": chat_id, "media": json.dumps(media_group)})
-    print(f"[通道 6] TG 大图大贴发送完成，状态码: {res.status_code}")
+    print(f"[通道 6] TG 大图大贴连发完成，状态码: {res.status_code}")
 
 if __name__ == "__main__":
     data = get_apple_ids()
