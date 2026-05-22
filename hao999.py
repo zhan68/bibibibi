@@ -27,7 +27,7 @@ def get_apple_ids():
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
+    chrome_options.add_user_agent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
     chrome_options.add_argument('--lang=zh-CN,zh;q=0.9')
     chrome_options.add_argument('--blink-settings=imagesEnabled=false') 
 
@@ -66,8 +66,10 @@ def get_apple_ids():
                     cards = driver.find_elements(By.XPATH, "//*[contains(text(), '复制')]/ancestor::div[position()<=3]")
                 
                 for card in cards:
+                    # 💥 降维打击：直接提取卡片的 HTML 源代码，防止纯文本被 Selenium 隐藏或过滤！
+                    card_html = card.get_attribute("innerHTML")
                     card_text = card.text
-                    if not card_text:
+                    if not card_html:
                         continue
                     
                     if "正常" in card_text:
@@ -80,12 +82,16 @@ def get_apple_ids():
                             continue
                         username = email_match.group(0).strip()
                         
-                        # 💡 2. 国家地区自动动态分析
-                        region = "共享账号"
-                        if "美国" in card_text: region = "美国"
-                        elif "中国" in card_text or "大陆" in card_text: region = "中国大陆"
-                        elif "香港" in card_text: region = "中国香港"
-                        elif "台湾" in card_text: region = "中国台湾"
+                        # 💡 2. 【高精度精准修复】直接从网页底层 HTML 中强行挖出国家字段
+                        region = "美国" # 默认美区兜底
+                        if "中国" in card_html or "大陆" in card_html:
+                            region = "中国大陆"
+                        elif "香港" in card_html:
+                            region = "中国香港"
+                        elif "台湾" in card_html:
+                            region = "中国台湾"
+                        elif "越南" in card_html:
+                            region = "越南"
                         
                         # 3. 密码按钮内部属性探测
                         password = ""
@@ -94,7 +100,6 @@ def get_apple_ids():
                             val = btn.get_attribute("data-clipboard-text") or btn.get_attribute("data-text")
                             if val:
                                 val = val.strip()
-                                # 只要这个属性不等于邮箱，且长度足够，放行带有 @ 的合法密码
                                 if val != username and len(val) >= 4 and not any(k in val for k in [".com", ".net", ".org", ".cl"]):
                                     password = val
                                     break
@@ -104,13 +109,12 @@ def get_apple_ids():
                             parts = [p.strip() for p in re.split(r'[\s|｜,，;；\t:]+', card_text) if p.strip()]
                             for part in parts:
                                 if part != username and len(part) >= 4:
-                                    # 💥 降维打破：放宽对密码包含 @ 的安全过滤，只要不以常见邮箱域名结尾即可放行！
                                     if not re.search(r'[\u4e00-\u9fa5]', part) and "202" not in part and not any(k in part for k in [".com", ".net", ".org", ".cl"]):
                                         password = part
                                         break
                                         
                         if username and password:
-                            # 将国家和账号数据精美织入
+                            # 完美组装国家地区数据
                             res = (f"📍 地区：{escape_markdown(region)}\n"
                                    f"👤 账号：`{escape_markdown(username)}`\n"
                                    f"🔑 密码：`{escape_markdown(password)}`")
