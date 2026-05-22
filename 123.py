@@ -25,7 +25,9 @@ def send_no_id_notice_to_tg(script_name):
         "hao456.py": "【通道 2】",
         "hao789.py": "【通道 3】",
         "hao888.py": "【通道 4】",
-        "hao999.py": "【通道 5】"
+        "hao999.py": "【通道 5】",
+        "hao666.py": "【通道 6】"
+    }
     }
     channel_display_name = name_map.get(script_name, f"【{script_name}】")
     
