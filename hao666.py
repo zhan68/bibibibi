@@ -3,6 +3,7 @@ import requests
 import time
 import re
 import json
+import html  # 💡 引入反转义金牌库
 from datetime import datetime, timedelta, timezone
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -42,10 +43,10 @@ def get_apple_ids():
         # 留出 4 秒给异步数据平铺完毕
         time.sleep(4)
         
-        # 💡 定位包含了单个卡片所有的 col 容器大方块
+        # 💡 精准定位包含了单个卡片所有的 col 容器大方块
         cards = driver.find_elements(By.CSS_SELECTOR, "#apple > div[class*='col'], #apple > div")
         
-        print(f"[通道 6] 成功锁定 {len(cards)} 个独立账号卡片方块，开始提取...")
+        print(f"[通道 6] 成功锁定 {len(cards)} 个独立账号卡片方块，开始智能化多国提取...")
         
         account_data = []
         
@@ -55,8 +56,8 @@ def get_apple_ids():
                 if not card_text or "@" not in card_text:
                     continue 
 
-                # 1. 地区提取：直接抓取右侧写死的文本
-                region = "美区账号"
+                # 🎯 1. 地区提取：全自动提取网页上写着的任意中文字符（无论是美国、越南还是日本）
+                region = "共享账号" 
                 try:
                     region_element = card.find_element(By.CSS_SELECTOR, ".float-end")
                     if region_element:
@@ -71,12 +72,15 @@ def get_apple_ids():
                 btns = card.find_elements(By.CLASS_NAME, "waves-effect")
                 
                 if len(btns) >= 2:
-                    # 💥 破局核心：直接抓取网页真正的属性 data-copy！
-                    username = btns[0].get_attribute("data-copy")
-                    password = btns[1].get_attribute("data-copy")
+                    raw_username = btns[0].get_attribute("data-copy")
+                    raw_password = btns[1].get_attribute("data-copy")
                     
-                    if username: username = username.strip()
-                    if password: password = password.strip()
+                    if not raw_username or not raw_password:
+                        continue
+                        
+                    # 💥 降维打击：利用 html.unescape 强行把 &amp; 还原回真正的 & 符号！
+                    username = html.unescape(raw_username.strip())
+                    password = html.unescape(raw_password.strip())
 
                     # 3. 数据有效性清算与格式组装
                     if username and password and "@" in username and "@" not in password:
@@ -111,7 +115,6 @@ def send_to_telegram(content_list):
     print(f"🎉 [通道 6] 成功抓取到 {len(content_list)} 组账号，正在向 TG 推送最新大帖...")
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     
-    # 📌 满血对齐广告格式
     header = "🚀 *最新 Apple ID 共享更新【6】*"
     body = "\n\n" + "\n\n──────────────\n\n".join(content_list)
     
