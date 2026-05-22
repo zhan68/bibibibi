@@ -42,58 +42,47 @@ def get_apple_ids():
         # 留出 4 秒给异步数据平铺完毕
         time.sleep(4)
         
-        # 💡 精准定位包含了地区和账号密码的 col 容器大方块
+        # 💡 重新校准：精确定位包含了地区和账号密码按钮的 col 卡片容器
         cards = driver.find_elements(By.CSS_SELECTOR, "#apple > div.col-12, #apple > div[class*='col'], #apple > div")
         
-        print(f"[通道 6] 成功锁定 {len(cards)} 个独立账号卡片方块，启动纯文本高精度挖掘...")
+        print(f"[通道 6] 成功锁定 {len(cards)} 个独立账号卡片方块，启动高精度属性探测...")
         
         account_data = []
         
         for idx, card in enumerate(cards):
             try:
-                # 🎯 核心升级：直接榨干这一个大方块里显示出来的所有字
-                card_text = card.text.strip()
-                if not card_text or "@" not in card_text:
-                    continue 
-
-                print(f"-> [通道 6] 正在粉碎清洗第 {idx+1} 个方块的文本...")
-
-                # 1. 地区提取：如果方块里写了“美国”就直接抓出美国，否则默认美区
+                # 1. 地区提取：直接抓取方块里包含的“美国”字样
+                card_text = card.text
                 region = "美区账号"
-                if "美国" in card_text:
-                    region = "美国"
-                elif "香港" in card_text:
-                    region = "中国香港"
-                elif "台湾" in card_text:
-                    region = "中国台湾"
+                if "美国" in card_text: region = "美国"
+                elif "香港" in card_text: region = "中国香港"
+                elif "台湾" in card_text: region = "中国台湾"
 
-                # 2. 账号提取：利用强大的正则直接抓出方块里的邮箱
-                email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', card_text)
-                if not email_match:
-                    continue
-                username = email_match.group(0).strip()
-
-                # 3. 密码提取：将方块内的文本打碎，精准剔除账号、地区和中文提示，剩下的纯英数即为密码！
-                password = ""
-                # 按空格、换行或特殊符号切片
-                parts = [p.strip() for p in re.split(r'[\s|｜,，;；\t:\n\r]+', card_text) if p.strip()]
+                # 2. 账号与密码按钮提取
+                # 寻找方块内部所有包含 waves-effect 类的属性按钮
+                btns = card.find_elements(By.CLASS_NAME, "waves-effect")
                 
-                for part in parts:
-                    # 密码绝对不是邮箱，不能包含中文，长度必须大于等于 4，且排除掉“美国”等文本
-                    if part != username and "@" not in part and len(part) >= 4:
-                        if not re.search(r'[\u4e00-\u9fa5]', part) and part not in ["复制", "账号", "密码", "成功"]:
-                            password = part
-                            break
-
-                # 4. 终审组装发布
-                if username and password:
-                    res = (f"📍 地区：{escape_markdown(region)}\n"
-                           f"👤 账号：`{escape_markdown(username)}`\n"
-                           f"🔑 密码：`{escape_markdown(password)}`")
+                if len(btns) >= 2:
+                    # 突破核心：优先提取隐藏在 data-clipboard-text 属性里的加密密文，拿不到再抓按钮文字
+                    username = btns[0].get_attribute("data-clipboard-text") or btns[0].get_attribute("value") or btns[0].text
+                    password = btns[1].get_attribute("data-clipboard-text") or btns[1].get_attribute("value") or btns[1].text
                     
-                    if res not in account_data:
-                        account_data.append(res)
-                        print(f"🥇 [通道 6] 提纯成功 -> 地区: {region} | 账号: {username} | 密码: {password}")
+                    if username: username = username.strip()
+                    if password: password = password.strip()
+
+                    # 3. 强力清洗邮箱正则，验证数据有效性
+                    if username and password and "@" in username and "@" not in password and len(password) >= 4:
+                        email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', username)
+                        if email_match:
+                            clean_username = email_match.group(0).strip()
+                            
+                            res = (f"📍 地区：{escape_markdown(region)}\n"
+                                   f"👤 账号：`{escape_markdown(clean_username)}`\n"
+                                   f"🔑 密码：`{escape_markdown(password)}`")
+                            
+                            if res not in account_data:
+                                account_data.append(res)
+                                print(f"🥇 [通道 6] 提纯成功 -> 地区: {region} | 账号: {clean_username} | 密码: {password}")
             except Exception as card_e:
                 continue
 
@@ -118,7 +107,6 @@ def send_to_telegram(content_list):
     print(f"🎉 [通道 6] 成功抓取到 {len(content_list)} 组账号，正在向 TG 推送最新大帖...")
     img_url = "https://raw.githubusercontent.com/qq83143750-a11y/telegram-web-monitor/main/1.jpg"
     
-    # 📌 满血对齐你频道的广告后缀
     header = "🚀 *最新 Apple ID 共享更新【6】*"
     body = "\n\n" + "\n\n──────────────\n\n".join(content_list)
     
