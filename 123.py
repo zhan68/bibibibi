@@ -67,7 +67,7 @@ def run_server():
     server.serve_forever()
 
 def run_robot_loop():
-    scripts = ["hao123.py", "hao456.py", "hao789.py", "hao888.py", "hao999.py"]
+    scripts = ["hao123.py", "hao456.py", "hao789.py", "hao888.py", "hao999.py", "hao666.py"]
     current_env = os.environ.copy()
     
     while True:
